@@ -235,8 +235,8 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   // 检查用户是否已登录
   const token = localStorage.getItem('token')
-  const userInfo = localStorage.getItem('userInfo')
-  const isAuthenticated = token && userInfo
+  // const userInfo = localStorage.getItem('userInfo')
+  const isAuthenticated = token
 
   // 需要登录的页面但未登录，跳转到登录页
   if (to.meta.requiresAuth && !isAuthenticated) {

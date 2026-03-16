@@ -6,7 +6,7 @@
           <el-icon :size="24" class="logo-icon">
             <Reading />
           </el-icon>
-          <h1 class="app-title">Study Plant</h1>
+          <h1 class="app-title" @click="test">Study Plant</h1>
         </div>
         <div class="header-right">
           <el-button type="primary" link @click="goToMessageList">
@@ -136,6 +136,8 @@ import {
   Edit, 
   Document 
 } from '@element-plus/icons-vue'
+import request from '@/utils/request'
+import axios from 'axios'
 
 const router = useRouter()
 const username = ref('')
@@ -171,11 +173,13 @@ const handleLogout = () => {
       type: 'warning',
     }
   )
-    .then(() => {
+    .then(async() => {
+      await request.post('/user/logout');
+
       // 清除所有用户相关的localStorage数据
-      localStorage.removeItem('userInfo')
+      // localStorage.removeItem('userInfo')
       localStorage.removeItem('token')
-      localStorage.removeItem('username')
+      // localStorage.removeItem('username')
 
       ElMessage.success('已退出登录')
       router.push('/login')
@@ -227,6 +231,11 @@ const createOnlineCourse = () => {
 
 const createOfflineCourse = () => {
   router.push('/offline/create')
+}
+
+const test = async () => {
+  const { data } = await axios.get('/api/hello');
+  console.log('res', data);
 }
 </script>
 

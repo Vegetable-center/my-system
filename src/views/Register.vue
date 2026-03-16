@@ -80,6 +80,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Message, Lock } from '@element-plus/icons-vue'
 import type { FormRules } from 'element-plus'
+import request from '@/utils/request'
 
 const router = useRouter()
 const registerFormRef = ref<any>()
@@ -131,39 +132,52 @@ const registerRules = reactive<FormRules>({
   ]
 })
 
-const handleRegister = async () => {
+const handleRegister = () => {
   if (!registerFormRef.value) return
 
-  await registerFormRef.value.validate((valid: any) => {
+  registerFormRef.value.validate(async (valid: any) => {
     if (valid) {
       loading.value = true
 
-      // 模拟注册请求
-      setTimeout(() => {
-        loading.value = false
-
-        // 创建用户信息对象
-        const userInfo = {
+      try {
+        const res: any = await register({
           username: registerForm.username,
           email: registerForm.email,
-          token: 'demo-token-' + Date.now(),
-          registerTime: new Date().toISOString()
+          password: registerForm.password
+        })
+        if(res.code === 200){
+          loading.value = false
+
+          ElMessage.success('注册成功')
+          router.push('/login');
+        } else {
+          loading.value = false
+          ElMessage.error('系统错误，请稍后重试' + res.msg);
+          console.log('register error', res.msg); 
         }
 
-        // 将用户信息存储到localStorage
-        localStorage.setItem('userInfo', JSON.stringify(userInfo))
-        localStorage.setItem('token', userInfo.token)
-        localStorage.setItem('username', userInfo.username)
-
-        ElMessage.success('注册成功')
-        router.push('/')
-      }, 1000)
+      } catch (error) {
+        loading.value = false
+        ElMessage.error('系统错误，请稍后重试');
+        console.log('register error', error); 
+      }
+      
     } else {
+      loading.value = false
       ElMessage.error('请填写正确的注册信息')
       return false
     }
   })
 }
+
+function register(data: any) {
+  return request({
+    url: '/user/register',
+    method: 'post',
+    data
+  })
+}
+
 </script>
 
 <style scoped>

@@ -2,7 +2,7 @@
   <div class="dialect-list-container">
     <el-header class="page-header">
       <div class="header-content">
-        <h1>方言资源库</h1>
+        <h1 style="cursor: pointer;" @click="goHome">方言资源库</h1>
         <el-button type="primary" @click="showAddDialog">
           <el-icon><Plus /></el-icon>
           添加方言
@@ -13,7 +13,7 @@
     <el-main class="page-main">
       <el-row :gutter="20">
         <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="6" v-for="dialect in dialectList" :key="dialect.id">
-          <el-card class="dialect-card" @click="viewDetail(dialect.id)">
+          <el-card class="dialect-card" @click="viewDetail(dialect.id || '1')">
             <template #header>
               <div class="card-header">
                 <span class="dialect-name">{{ dialect.name }}</span>
@@ -43,6 +43,12 @@
       <el-form :model="addForm" label-width="100px">
         <el-form-item label="方言名称">
           <el-input v-model="addForm.name" placeholder="请输入方言名称" />
+        </el-form-item>
+        <el-form-item label="方言使用人数">
+          <el-input v-model="addForm.userNumber" placeholder="请输入使用人数" />
+        </el-form-item>
+        <el-form-item label="方言所属语系">
+          <el-input v-model="addForm.languageFamily" placeholder="请输入所属语系" />
         </el-form-item>
         <el-form-item label="所属地区">
           <el-select v-model="addForm.region" placeholder="请选择地区">
@@ -77,11 +83,14 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Document, ArrowRight } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 
 interface Dialect {
-  id: string
+  id?: string
   name: string
   region: string
+  userNumber: string
+  languageFamily: string
   description: string
   resourceCount: number
 }
@@ -92,14 +101,17 @@ const addDialogVisible = ref(false)
 const addForm = ref({
   name: '',
   region: '',
+  userNumber: '',
+  languageFamily: '',
   description: ''
 })
 
 // 从localStorage加载方言列表
-const loadDialectList = () => {
-  const stored = localStorage.getItem('dialectList')
-  if (stored) {
-    dialectList.value = JSON.parse(stored)
+const loadDialectList = async () => {
+  const { data: listDialect } = await request.get('dialect/list')
+
+  if (listDialect) {
+    dialectList.value = listDialect;
   } else {
     // 初始化示例数据
     dialectList.value = [
@@ -107,6 +119,8 @@ const loadDialectList = () => {
         id: '1',
         name: '北京话',
         region: '华北',
+        userNumber: '1000万',
+        languageFamily: '官话',
         description: '北京话是北京地区的方言，属于官话方言系统，是现代汉语标准语的基础方言。',
         resourceCount: 15
       },
@@ -114,6 +128,8 @@ const loadDialectList = () => {
         id: '2',
         name: '上海话',
         region: '华东',
+        userNumber: '1000万',
+        languageFamily: '官话',
         description: '上海话是吴语的一种，主要流行于上海地区，是吴语太湖片苏沪嘉小片的代表方言。',
         resourceCount: 12
       },
@@ -121,6 +137,8 @@ const loadDialectList = () => {
         id: '3',
         name: '广东话',
         region: '华南',
+        userNumber: '1000万',
+        languageFamily: '官话',
         description: '广东话即粤语，是汉语七大方言之一，主要流行于广东、广西、香港、澳门等地。',
         resourceCount: 20
       },
@@ -128,6 +146,8 @@ const loadDialectList = () => {
         id: '4',
         name: '四川话',
         region: '西南',
+        userNumber: '1000万',
+        languageFamily: '官话',
         description: '四川话是流行于四川省、重庆市及周边地区的方言，属于西南官话系统。',
         resourceCount: 18
       }
@@ -157,35 +177,52 @@ const showAddDialog = () => {
   addForm.value = {
     name: '',
     region: '',
+    userNumber: '',
+    languageFamily: '',
     description: ''
   }
   addDialogVisible.value = true
 }
 
-const handleAdd = () => {
-  if (!addForm.value.name || !addForm.value.region) {
+const handleAdd = async() => {
+  if (!addForm.value.name || !addForm.value.region || !addForm.value.userNumber || !addForm.value.languageFamily) {
     ElMessage.warning('请填写完整信息')
     return
   }
-
   const newDialect: Dialect = {
-    id: Date.now().toString(),
     name: addForm.value.name,
     region: addForm.value.region,
+    userNumber: addForm.value.userNumber,
+    languageFamily: addForm.value.languageFamily,
     description: addForm.value.description,
     resourceCount: 0
   }
 
-  dialectList.value.unshift(newDialect)
-  localStorage.setItem('dialectList', JSON.stringify(dialectList.value))
-
-  ElMessage.success('添加成功')
-  addDialogVisible.value = false
+  try {
+    const res: any = await request.post('dialect/create', newDialect)
+    if (res.code === 200) {
+      console.log("res", res)
+      
+      ElMessage.success('添加成功')
+      loadDialectList();
+      addDialogVisible.value = false
+    } else {
+      ElMessage.error('添加方言失败' + res.msg);
+      addDialogVisible.value = false
+    }
+  } catch (error) {
+    ElMessage.error('添加方言失败');
+    addDialogVisible.value = false
+  }
 }
 
 onMounted(() => {
   loadDialectList()
 })
+
+const goHome = () => {
+  router.push('/');
+}
 </script>
 
 <style scoped>

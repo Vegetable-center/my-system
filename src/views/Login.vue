@@ -60,6 +60,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import type { FormRules } from 'element-plus'
+import  request  from '../utils/request';
 
 const router = useRouter()
 const loginFormRef = ref<any>()
@@ -84,35 +85,44 @@ const loginRules = reactive<FormRules>({
 const handleLogin = async () => {
   if (!loginFormRef.value) return
 
-  await loginFormRef.value.validate((valid: any) => {
+  loginFormRef.value.validate(async (valid: any) => {
     if (valid) {
       loading.value = true
-
-      // 模拟登录请求
-      setTimeout(() => {
-        loading.value = false
-
-        // 创建用户信息对象
-        const userInfo = {
+      try {
+        const res: any = await login({
           username: loginForm.username,
-          token: 'demo-token-' + Date.now(),
-          loginTime: new Date().toISOString()
+          password: loginForm.password
+        })
+        if(res.code === 200) {
+          loading.value = false
+
+          localStorage.setItem('token', res.data.token)
+          ElMessage.success('登录成功');
+          console.log('111')
+          router.push('/')
+        } else {
+          loading.value = false
+          ElMessage.error('系统错误',res.msg)
         }
-
-        // 将用户信息存储到localStorage
-        localStorage.setItem('userInfo', JSON.stringify(userInfo))
-        localStorage.setItem('token', userInfo.token)
-        localStorage.setItem('username', userInfo.username)
-
-        ElMessage.success('登录成功')
-        router.push('/')
-      }, 1000)
+      } catch (error) {
+        loading.value = false;
+        ElMessage.error('系统错误，请稍后重试');
+      }
     } else {
       ElMessage.error('请填写正确的登录信息')
       return false
     }
   })
 }
+
+function login(data: any) {
+  return request({
+    url: '/user/login',
+    method: 'post',
+    data
+  })
+}
+
 </script>
 
 <style scoped>

@@ -24,7 +24,7 @@
               <div class="info-grid">
                 <div class="info-item">
                   <span class="label">使用人数：</span>
-                  <span class="value">{{ dialectInfo.userCount || '约 ' + Math.floor(Math.random() * 5000 + 1000) + ' 万' }}</span>
+                  <span class="value">{{ '约 ' + dialectInfo.userNumber || '约 ' + Math.floor(Math.random() * 5000 + 1000) + ' 万' }}</span>
                 </div>
                 <div class="info-item">
                   <span class="label">分布区域：</span>
@@ -55,18 +55,15 @@
             <div class="resource-list">
               <div v-for="resource in resourceList" :key="resource.id" class="resource-item">
                 <div class="resource-icon">
-                  <el-icon :size="32" :color="getResourceIconColor(resource.type)">
-                    <component :is="getResourceIcon(resource.type)" />
+                  <el-icon :size="32" :color="getResourceIconColor('文档')">
+                    <component :is="getResourceIcon('文档')" />
                   </el-icon>
                 </div>
                 <div class="resource-info">
-                  <h4 class="resource-title">{{ resource.title }}</h4>
-                  <p class="resource-desc">{{ resource.description }}</p>
+                  <h4 class="resource-title">{{ resource.name }}</h4>
                   <div class="resource-meta">
-                    <el-tag size="small" :type="getResourceTagType(resource.type)">
-                      {{ resource.type }}
-                    </el-tag>
-                    <span class="resource-date">{{ resource.createTime }}</span>
+                    <el-tag size="small" :type="getResourceTagType('文档')">文档</el-tag>
+                    <span class="resource-date">{{ formatUploadTime(resource.uploadTime) || '1025-01-21' }}</span>
                   </div>
                 </div>
                 <div class="resource-action">
@@ -92,7 +89,7 @@
                 <div class="stat-value">{{ dialectInfo.resourceCount }}</div>
                 <div class="stat-label">资源总数</div>
               </div>
-              <el-divider />
+              <!-- <el-divider />
               <div class="stat-item">
                 <div class="stat-value">{{ resourceList.filter(r => r.type === '音频').length }}</div>
                 <div class="stat-label">音频资源</div>
@@ -101,10 +98,10 @@
               <div class="stat-item">
                 <div class="stat-value">{{ resourceList.filter(r => r.type === '视频').length }}</div>
                 <div class="stat-label">视频资源</div>
-              </div>
+              </div> -->
               <el-divider />
               <div class="stat-item">
-                <div class="stat-value">{{ resourceList.filter(r => r.type === '文档').length }}</div>
+                <div class="stat-value">{{ dialectInfo.resourceCount }}</div>
                 <div class="stat-label">文档资源</div>
               </div>
             </div>
@@ -116,23 +113,36 @@
     <!-- 添加资源对话框 -->
     <el-dialog v-model="addResourceDialogVisible" title="添加资源" width="500px">
       <el-form :model="addResourceForm" label-width="100px">
-        <el-form-item label="资源标题">
-          <el-input v-model="addResourceForm.title" placeholder="请输入资源标题" />
-        </el-form-item>
         <el-form-item label="资源类型">
-          <el-select v-model="addResourceForm.type" placeholder="请选择资源类型">
+          <el-select v-model="addResourceForm.sourceType" placeholder="请选择资源类型">
             <el-option label="音频" value="音频" />
             <el-option label="视频" value="视频" />
             <el-option label="文档" value="文档" />
           </el-select>
         </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            v-model="addResourceForm.description"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入资源描述"
-          />
+        <el-form-item label="文档上传">
+          <el-upload
+            ref="uploadRef"
+            class="upload-document"
+            :headers="uploadHeaders"
+            method="post"
+            drag
+            :action="`/api/dialect/${dialectId}/upload`"
+            :on-success="handleUploadSuccess"
+            :on-error="handleUploadError"
+            name="document"
+            :auto-upload="false"
+          >
+            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+            <div class="el-upload__text">
+              拖拽文件上传或者 <em>点击上传</em>
+            </div>
+            <template #tip>
+              <div class="el-upload__tip">
+                jpg文件上传要小于650kb
+              </div>
+            </template>
+          </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -142,22 +152,18 @@
     </el-dialog>
 
     <!-- 查看资源对话框 -->
-    <el-dialog v-model="viewResourceDialogVisible" :title="currentResource?.title" width="600px">
+    <el-dialog v-model="viewResourceDialogVisible" :title="currentResource?.name" width="600px">
       <div class="resource-detail">
         <el-descriptions :column="1" border>
-          <el-descriptions-item label="资源类型">
-            {{ currentResource?.type }}
-          </el-descriptions-item>
+          <el-descriptions-item label="资源类型">文档</el-descriptions-item>
           <el-descriptions-item label="创建时间">
-            {{ currentResource?.createTime }}
+            {{ formatUploadTime(currentResource?.uploadTime) }}
           </el-descriptions-item>
-          <el-descriptions-item label="资源描述">
-            {{ currentResource?.description }}
-          </el-descriptions-item>
+          <el-descriptions-item label="资源描述">无</el-descriptions-item>
         </el-descriptions>
         <div class="resource-preview" v-if="currentResource">
-          <el-icon :size="64" :color="getResourceIconColor(currentResource.type)">
-            <component :is="getResourceIcon(currentResource.type)" />
+          <el-icon :size="64" :color="getResourceIconColor('文档')">
+            <component :is="getResourceIcon('文档')" />
           </el-icon>
           <p>资源预览功能开发中...</p>
         </div>
@@ -169,8 +175,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElUpload } from 'element-plus'
 import { Plus, VideoPlay, Headset, Document } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 
 interface Dialect {
   id: string
@@ -178,18 +185,15 @@ interface Dialect {
   region: string
   description: string
   resourceCount: number
-  userCount?: string
+  userNumber?: string
   distribution?: string
   languageFamily?: string
 }
 
 interface Resource {
   id: string
-  dialectId: string
-  title: string
-  type: string
-  description: string
-  createTime: string
+  name: string,
+  uploadTime: string,
 }
 
 const route = useRoute()
@@ -199,6 +203,8 @@ const dialectId = computed(() => route.params.id as string)
 const dialectInfo = ref<Dialect>({
   id: '',
   name: '',
+  userNumber: '',
+  languageFamily: '',
   region: '',
   description: '',
   resourceCount: 0
@@ -209,30 +215,44 @@ const addResourceDialogVisible = ref(false)
 const viewResourceDialogVisible = ref(false)
 const currentResource = ref<Resource | null>(null)
 
+
+// 3. 上传请求头（携带 JWT Token）
+const uploadHeaders = ref({
+  Authorization: `Bearer ${localStorage.getItem('token')}` // 和之前的 Token 逻辑一致
+});
+
+// 5. 上传成功回调
+const handleUploadSuccess = (res: any) => {
+  ElMessage.success('方言信息和文档上传成功');
+  console.log('res', res)
+  resourceList.value = res.data.documents;
+};
+
+// 6. 上传失败回调
+const handleUploadError = (error: any) => {
+  ElMessage.error('上传失败，请重试');
+  console.error('上传错误：', error);
+};
+
 const addResourceForm = ref({
-  title: '',
-  type: '',
-  description: ''
+  sourceType: '文档',
 })
 
 // 加载方言详情
-const loadDialectDetail = () => {
-  const dialectList = JSON.parse(localStorage.getItem('dialectList') || '[]')
-  const dialect = dialectList.find((d: Dialect) => d.id === dialectId.value)
+const loadDialectDetail = async () => {
+  const { data: dialectList } = await request.get('/dialect/list');
+  const dialect = dialectList.find((d: Dialect) => d.id == dialectId.value)
+
+  console.log(dialectList)
+
 
   if (dialect) {
     dialectInfo.value = dialect
-    loadResources()
+    resourceList.value = dialect.documents
   } else {
     ElMessage.error('未找到该方言信息')
-    router.push('/dialect/list')
+    // router.push('/dialect/list')
   }
-}
-
-// 加载资源列表
-const loadResources = () => {
-  const allResources = JSON.parse(localStorage.getItem('dialectResources') || '[]')
-  resourceList.value = allResources.filter((r: Resource) => r.dialectId === dialectId.value)
 }
 
 const getTagType = (region: string) => {
@@ -281,43 +301,22 @@ const goBack = () => {
 
 const showAddResourceDialog = () => {
   addResourceForm.value = {
-    title: '',
-    type: '',
-    description: ''
+    sourceType: '文档',
   }
   addResourceDialogVisible.value = true
 }
 
+const uploadRef = ref<any>(null);
+
 const handleAddResource = () => {
-  if (!addResourceForm.value.title || !addResourceForm.value.type) {
+  if (!addResourceForm.value.sourceType) {
     ElMessage.warning('请填写完整信息')
     return
   }
 
-  const newResource: Resource = {
-    id: Date.now().toString(),
-    dialectId: dialectId.value,
-    title: addResourceForm.value.title,
-    type: addResourceForm.value.type,
-    description: addResourceForm.value.description,
-    createTime: new Date().toLocaleString()
-  }
-
-  const allResources = JSON.parse(localStorage.getItem('dialectResources') || '[]')
-  allResources.unshift(newResource)
-  localStorage.setItem('dialectResources', JSON.stringify(allResources))
-
-  // 更新方言资源计数
-  const dialectList = JSON.parse(localStorage.getItem('dialectList') || '[]')
-  const dialectIndex = dialectList.findIndex((d: Dialect) => d.id === dialectId.value)
-  if (dialectIndex !== -1) {
-    dialectList[dialectIndex].resourceCount += 1
-    localStorage.setItem('dialectList', JSON.stringify(dialectList))
-    dialectInfo.value.resourceCount += 1
-  }
-
-  loadResources()
+  uploadRef.value!.submit()
   ElMessage.success('添加成功')
+
   addResourceDialogVisible.value = false
 }
 
@@ -329,6 +328,20 @@ const viewResource = (resource: Resource) => {
 onMounted(() => {
   loadDialectDetail()
 })
+
+function formatUploadTime(isoTime: any): string {
+  const date = new Date(isoTime);
+  // 转换为本地时间，补零处理
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份从0开始
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+
+  // 返回格式：YYYY-MM-DD HH:mm:ss
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
 </script>
 
 <style scoped>
