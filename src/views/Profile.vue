@@ -2,7 +2,7 @@
   <div class="profile-container">
     <el-header class="page-header">
       <div class="header-content">
-        <h1>个人中心</h1>
+        <h1 style="cursor: pointer;" @click="goHome">个人中心</h1>
       </div>
     </el-header>
 
@@ -21,7 +21,7 @@
                 </el-button>
               </div>
               <h3 class="username">{{ userInfo.username }}</h3>
-              <p class="user-bio">{{ userInfo.bio || '这个人很懒，什么都没留下...' }}</p>
+              <p class="user-bio">{{ userInfo.signature || '这个人很懒，什么都没留下...' }}</p>
             </div>
             <el-divider />
             <div class="user-stats">
@@ -94,13 +94,13 @@
                   <div class="post-meta">
                     <span class="meta-item">
                       <el-icon><View /></el-icon>
-                      {{ post.views }}
+                      {{ post.viewCount }}
                     </span>
                     <span class="meta-item">
                       <el-icon><Star /></el-icon>
-                      {{ post.likes }}
+                      {{ post.likeCount }}
                     </span>
-                    <span class="meta-item">{{ post.createTime }}</span>
+                    <span class="meta-item">{{formatUploadTime(post.createdAt) }}</span>
                   </div>
                 </div>
                 <div class="post-actions">
@@ -250,15 +250,15 @@
         </el-form-item>
         <el-form-item label="个性签名">
           <el-input
-            v-model="editForm.bio"
+            v-model="editForm.signature"
             type="textarea"
             :rows="3"
             placeholder="请输入个性签名"
           />
         </el-form-item>
-        <el-form-item label="头像URL">
+        <!-- <el-form-item label="头像URL">
           <el-input v-model="editForm.avatar" placeholder="请输入头像URL" />
-        </el-form-item>
+        </el-form-item> -->
       </el-form>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
@@ -296,11 +296,12 @@ import {
   View,
   Star
 } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 
 interface UserInfo {
   username: string
   avatar: string
-  bio: string
+  signature: string
 }
 
 interface Post {
@@ -325,7 +326,7 @@ const activeTab = ref('posts')
 const userInfo = ref<UserInfo>({
   username: '',
   avatar: '',
-  bio: ''
+  signature: ''
 })
 
 const myPosts = ref<any>([])
@@ -337,13 +338,13 @@ const followDialogVisible = ref(false)
 
 const editForm = ref({
   username: '',
-  bio: '',
+  signature: '',
   avatar: ''
 })
 
 const settingsForm = ref({
   username: '',
-  bio: '',
+  signature: '',
   avatar: ''
 })
 
@@ -352,43 +353,27 @@ const followForm = ref({
 })
 
 // 加载用户信息
-const loadUserInfo = () => {
-  const stored = localStorage.getItem('userInfo')
-  if (stored) {
-    userInfo.value = JSON.parse(stored)
-    editForm.value = {
-      username: userInfo.value.username,
-      bio: userInfo.value.bio || '',
-      avatar: userInfo.value.avatar || ''
+const loadUserInfo = async () => {
+  const userId = localStorage.getItem('userId');
+  try {
+    const res: any = await request.get(`/user/userInfo/${userId}`);
+    if(res.code === 200) {
+      console.log('getuser res', res);
+      userInfo.value.username = res.data.userName;
+      userInfo.value.signature = res.data.signature;
+
+      myPosts.value = res.data.posts;
+      followingList.value = res.data.followings;
+      followersList.value = res.data.followers;
+      
+
+      // 设置编辑对话框中用户名的默认值
+      editForm.value.username = res.data.userName;
+    } else {
+      ElMessage.error('获取用户信息失败,请稍后重试');
     }
-    settingsForm.value = {
-      username: userInfo.value.username,
-      bio: userInfo.value.bio || '',
-      avatar: userInfo.value.avatar || ''
-    }
-  }
-}
-
-// 加载我的帖子
-const loadMyPosts = () => {
-  const allPosts = JSON.parse(localStorage.getItem('communityPosts') || '[]')
-  const currentUser = JSON.parse(localStorage.getItem('userInfo') || '{}')
-  myPosts.value = allPosts.filter((post: any) => post.author === currentUser.username)
-}
-
-// 加载关注列表
-const loadFollowing = () => {
-  const stored = localStorage.getItem('following')
-  if (stored) {
-    followingList.value = JSON.parse(stored)
-  }
-}
-
-// 加载粉丝列表
-const loadFollowers = () => {
-  const stored = localStorage.getItem('followers')
-  if (stored) {
-    followersList.value = JSON.parse(stored)
+  } catch {
+    ElMessage.error('获取用户信息失败，系统错误，请稍后重试');
   }
 }
 
@@ -400,24 +385,31 @@ const showEditDialog = () => {
   editDialogVisible.value = true
 }
 
-const saveEdit = () => {
+const saveEdit = async () => {
   const updatedInfo = {
-    ...userInfo.value,
-    bio: editForm.value.bio,
-    avatar: editForm.value.avatar
+    signature: editForm.value.signature,
+    // avatar: editForm.value.avatar
   }
 
-  localStorage.setItem('userInfo', JSON.stringify(updatedInfo))
-  userInfo.value = updatedInfo
-
-  ElMessage.success('保存成功')
-  editDialogVisible.value = false
+  try {
+    const res: any = await request.post('/user/profile', updatedInfo);
+    if(res.code === 200) {
+      ElMessage.success('保存成功');
+      loadUserInfo();
+    } else {
+      ElMessage.error('保存失败,请稍后重试');
+    }
+  } catch(err) {
+    ElMessage.error('保存失败,请稍后重试');
+  } finally {
+    editDialogVisible.value = false
+  }
 }
 
 const saveSettings = () => {
   const updatedInfo = {
     ...userInfo.value,
-    bio: settingsForm.value.bio,
+    signature: settingsForm.value.signature,
     avatar: settingsForm.value.avatar
   }
 
@@ -445,7 +437,7 @@ const deletePost = (id: string) => {
       const allPosts = JSON.parse(localStorage.getItem('communityPosts') || '[]')
       const filtered = allPosts.filter((post: any) => post.id !== id)
       localStorage.setItem('communityPosts', JSON.stringify(filtered))
-      loadMyPosts()
+      // loadMyPosts()
       ElMessage.success('删除成功')
     })
     .catch(() => {
@@ -527,10 +519,23 @@ const goToStats = () => {
 
 onMounted(() => {
   loadUserInfo()
-  loadMyPosts()
-  loadFollowing()
-  loadFollowers()
 })
+const goHome = () => {
+  router.push('/');
+}
+function formatUploadTime(isoTime: any): string {
+  const date = new Date(isoTime);
+  // 转换为本地时间，补零处理
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份从0开始
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+
+  // 返回格式：YYYY-MM-DD HH:mm:ss
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
 </script>
 
 <style scoped>

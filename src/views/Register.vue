@@ -152,7 +152,7 @@ const handleRegister = () => {
           router.push('/login');
         } else {
           loading.value = false
-          ElMessage.error('系统错误，请稍后重试' + res.msg);
+          ElMessage.error('系统错误，请稍后重试' + res.message);
           console.log('register error', res.msg); 
         }
 

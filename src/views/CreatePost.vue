@@ -116,6 +116,7 @@ import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Picture } from '@element-plus/icons-vue'
+import request from '@/utils/request';
 
 interface PostForm {
   title: string
@@ -240,7 +241,7 @@ const saveDraft = () => {
 }
 
 // 发布帖子
-const publishPost = () => {
+const publishPost = async () => {
   if (!postForm.value.title || !postForm.value.category || !postForm.value.content) {
     ElMessage.warning('请填写完整信息')
     return
@@ -262,9 +263,12 @@ const publishPost = () => {
   }
 
   // 保存帖子
-  const posts = JSON.parse(localStorage.getItem('communityPosts') || '[]')
-  posts.unshift(newPost)
-  localStorage.setItem('communityPosts', JSON.stringify(posts))
+  // const posts = JSON.parse(localStorage.getItem('communityPosts') || '[]')
+  // posts.unshift(newPost)
+  // localStorage.setItem('communityPosts', JSON.stringify(posts))
+
+  const res = await request.post('/content/create', newPost);
+  console.log('res', res);
 
   // 清除草稿
   localStorage.removeItem('postDraft')

@@ -2,7 +2,7 @@
   <div class="community-container">
     <el-header class="page-header">
       <div class="header-content">
-        <h1>社区互动</h1>
+        <h1 style="cursor: pointer;" @click="goHome">社区互动</h1>
         <el-button type="primary" @click="goToCreatePost">
           <el-icon><Edit /></el-icon>
           发布新帖
@@ -34,7 +34,8 @@
         <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="6" v-for="post in filteredPosts" :key="post.id">
           <el-card class="post-card" @click="viewDetail(post.id)">
             <div class="post-cover">
-              <el-image :src="post.cover" fit="cover" lazy>
+              <!-- 这里应该是coverimg -->
+              <el-image :src="post.coverImg" fit="cover" lazy>
                 <template #error>
                   <div class="image-slot">
                     <el-icon :size="40"><Picture /></el-icon>
@@ -47,19 +48,17 @@
               <p class="post-desc">{{ post.content }}</p>
               <div class="post-footer">
                 <div class="post-author">
-                  <el-avatar :size="24" :src="post.authorAvatar">
-                    {{ post.author.charAt(0) }}
-                  </el-avatar>
-                  <span>{{ post.author }}</span>
+                  <el-avatar :size="24" :src="post.avatar"></el-avatar>
+                  <span>{{ post.userName }}</span>
                 </div>
                 <div class="post-stats">
                   <span class="stat-item">
                     <el-icon><View /></el-icon>
-                    {{ post.views }}
+                    {{ post.viewCount }}
                   </span>
                   <span class="stat-item">
                     <el-icon><Star /></el-icon>
-                    {{ post.likes }}
+                    {{ post.likeCount }}
                   </span>
                 </div>
               </div>
@@ -70,40 +69,6 @@
 
       <el-empty v-if="filteredPosts.length === 0" description="暂无帖子" />
     </el-main>
-
-    <!-- 发布帖子对话框 -->
-    <el-dialog v-model="publishDialogVisible" title="发布帖子" width="600px">
-      <el-form :model="publishForm" label-width="100px">
-        <el-form-item label="帖子标题">
-          <el-input v-model="publishForm.title" placeholder="请输入帖子标题" />
-        </el-form-item>
-        <el-form-item label="内容分类">
-          <el-select v-model="publishForm.category" placeholder="请选择分类">
-            <el-option 
-              v-for="category in categories" 
-              :key="category.id"
-              :label="category.name" 
-              :value="category.id" 
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="帖子内容">
-          <el-input
-            v-model="publishForm.content"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入帖子内容"
-          />
-        </el-form-item>
-        <el-form-item label="封面图片">
-          <el-input v-model="publishForm.cover" placeholder="请输入封面图片URL" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="publishDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handlePublish">发布</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -122,18 +87,19 @@ import {
   TrendCharts,
   Trophy
 } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 
 interface Post {
   id: string
   title: string
   content: string
-  cover: string
+  coverImg: string
   category: string
-  author: string
-  authorAvatar: string
-  views: number
-  likes: number
-  createTime: string
+  userName: string
+  avatar: string
+  viewCount: number
+  likeCount: number
+  createdAt: string
 }
 
 interface Category {
@@ -164,74 +130,35 @@ const publishForm = ref({
 
 // 根据分类过滤帖子
 const filteredPosts = computed(() => {
+  if (!Array.isArray(postList.value)) {
+    console.error('postList 不是数组！当前值：', postList.value);
+    return [];
+  }
   if (currentCategory.value === 'all') {
+    console.log(postList.value,'1111')
     return postList.value
   }
+  console.log(postList.value,'2222')
   return postList.value.filter(post => post.category === currentCategory.value)
 })
 
 // 从localStorage加载帖子列表
-const loadPostList = () => {
-  const stored = localStorage.getItem('communityPosts')
-  if (stored) {
-    postList.value = JSON.parse(stored)
-  } else {
-    // 初始化示例数据
-    postList.value = [
-      {
-        id: '1',
-        title: '学习北京话的心得分享',
-        content: '经过三个月的学习，我终于掌握了北京话的基本发音和常用词汇，分享一些学习经验...',
-        cover: 'https://via.placeholder.com/400x300?text=Beijing',
-        category: 'share',
-        author: '张三',
-        authorAvatar: '',
-        views: 1234,
-        likes: 56,
-        createTime: new Date().toLocaleString()
-      },
-      {
-        id: '2',
-        title: '求助：上海话中这些词汇怎么发音？',
-        content: '在学习上海话的过程中遇到了一些发音问题，希望有经验的老师能帮忙解答...',
-        cover: 'https://via.placeholder.com/400x300?text=Shanghai',
-        category: 'question',
-        author: '李四',
-        authorAvatar: '',
-        views: 856,
-        likes: 32,
-        createTime: new Date().toLocaleString()
-      },
-      {
-        id: '3',
-        title: '推荐几个学习粤语的好资源',
-        content: '整理了一些优质的粤语学习资源，包括视频、音频和教材，分享给大家...',
-        cover: 'https://via.placeholder.com/400x300?text=Cantonese',
-        category: 'resource',
-        author: '王五',
-        authorAvatar: '',
-        views: 2341,
-        likes: 89,
-        createTime: new Date().toLocaleString()
-      },
-      {
-        id: '4',
-        title: '我的方言学习成果展示',
-        content: '经过半年的努力，我已经能够流利使用三种方言进行日常交流，分享一下学习成果...',
-        cover: 'https://via.placeholder.com/400x300?text=Achievement',
-        category: 'achievement',
-        author: '赵六',
-        authorAvatar: '',
-        views: 3456,
-        likes: 156,
-        createTime: new Date().toLocaleString()
-      }
-    ]
-    localStorage.setItem('communityPosts', JSON.stringify(postList.value))
+const loadPostList = async () => {
+  try {
+    const listData = await request.get('/content/list');
+    console.log('listData res', listData);
+
+    postList.value = listData.data.list || [];
+  } catch(err){
+    ElMessage.error('获取帖子列表失败');
+    console.log('获取帖子列表err',err)
+  } finally {
+
   }
 }
 
 const changeCategory = (categoryId: string) => {
+  console.log('category', categoryId);
   currentCategory.value = categoryId
 }
 
@@ -264,13 +191,13 @@ const handlePublish = () => {
     id: Date.now().toString(),
     title: publishForm.value.title,
     content: publishForm.value.content,
-    cover: publishForm.value.cover || 'https://via.placeholder.com/400x300?text=Post',
+    coverImg: publishForm.value.cover || 'https://via.placeholder.com/400x300?text=Post',
     category: publishForm.value.category,
-    author: userInfo.username || '匿名用户',
-    authorAvatar: userInfo.avatar || '',
-    views: 0,
-    likes: 0,
-    createTime: new Date().toLocaleString()
+    userName: userInfo.username || '匿名用户',
+    avatar: userInfo.avatar || '',
+    viewCount: 0,
+    likeCount: 0,
+    createdAt: new Date().toLocaleString()
   }
 
   postList.value.unshift(newPost)
@@ -283,6 +210,10 @@ const handlePublish = () => {
 onMounted(() => {
   loadPostList()
 })
+
+const goHome = ()=> {
+  router.push('/');
+}
 </script>
 
 <style scoped>

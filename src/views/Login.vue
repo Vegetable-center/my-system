@@ -94,19 +94,19 @@ const handleLogin = async () => {
           password: loginForm.password
         })
         if(res.code === 200) {
-          loading.value = false
+          console.log('login res', res);
 
-          localStorage.setItem('token', res.data.token)
+          localStorage.setItem('token', res.data.token);
+          localStorage.setItem('userId', res.data.userId);
           ElMessage.success('登录成功');
-          console.log('111')
           router.push('/')
         } else {
-          loading.value = false
           ElMessage.error('系统错误',res.msg)
         }
       } catch (error) {
-        loading.value = false;
         ElMessage.error('系统错误，请稍后重试');
+      } finally {
+        loading.value = false
       }
     } else {
       ElMessage.error('请填写正确的登录信息')
