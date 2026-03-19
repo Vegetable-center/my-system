@@ -24,8 +24,8 @@
                 <div class="info-item">
                   <el-icon :size="24" color="#409EFF"><Calendar /></el-icon>
                   <div class="info-text">
-                    <div class="label">今日日期</div>
-                    <div class="value">{{ currentDate }}</div>
+                    <div class="label">累计打卡天数</div>
+                    <div class="value">{{ checkInDays }} 天</div>
                   </div>
                 </div>
                 <div class="info-item">
@@ -73,20 +73,14 @@
               </div>
             </template>
             <div class="calendar-content">
-              <div class="calendar-weekdays">
-                <div v-for="day in weekdays" :key="day" class="weekday">
-                  {{ day }}
-                </div>
-              </div>
               <div class="calendar-days">
                 <div 
-                  v-for="day in calendarDays" 
-                  :key="day.date"
+                  v-for="(day, index) in calendarDays" 
+                  :key="index"
                   class="calendar-day"
                   :class="{ 
                     'is-checked': day.checked,
-                    'is-today': day.isToday,
-                    'is-other-month': day.isOtherMonth
+                    'is-today': day.isToday
                   }"
                 >
                   {{ day.day }}
@@ -119,10 +113,10 @@
                 <div class="history-list">
                   <div v-for="record in recentCoins" :key="record.id" class="history-item">
                     <div class="history-info">
-                      <div class="history-title">{{ record.title }}</div>
-                      <div class="history-time">{{ record.time }}</div>
+                      <div class="history-title">每日打卡</div>
+                      <div class="history-time">{{ record.checkinDate }}</div>
                     </div>
-                    <div class="history-value">+{{ record.coins }}</div>
+                    <div class="history-value">+{{ record.points }}</div>
                   </div>
                   <el-empty v-if="recentCoins.length === 0" description="暂无记录" />
                 </div>
@@ -135,10 +129,10 @@
             <template #header>
               <div class="card-header">
                 <span>打卡排行榜</span>
-                <el-button type="primary" link @click="goToRank">
+                <!-- <el-button type="primary" link @click="goToRank">
                   <el-icon><Trophy /></el-icon>
                   查看全部
-                </el-button>
+                </el-button> -->
               </div>
             </template>
             <div class="rank-list">
@@ -151,9 +145,9 @@
                 </el-avatar>
                 <div class="user-info">
                   <div class="username">{{ user.username }}</div>
-                  <div class="checkin-days">连续打卡 {{ user.days }} 天</div>
+                  <div class="checkin-days">连续打卡 {{ user.currentContinuousDays }} 天</div>
                 </div>
-                <div class="rank-coins">{{ user.coins }} 积分</div>
+                <div class="rank-coins">{{ user.totalPoints }} 积分</div>
               </div>
               <el-empty v-if="topUsers.length === 0" description="暂无数据" />
             </div>
@@ -178,33 +172,33 @@ import {
   ShoppingCart,
   Trophy
 } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 
 interface CoinRecord {
   id: string
-  title: string
-  coins: number
-  time: string
+  points: string
+  checkinDate: string
 }
 
 interface RankUser {
   id: string
+  userId: string
   username: string
   avatar: string
-  days: number
-  coins: number
+  currentContinuousDays: number
+  totalPoints: number
 }
 
 const router = useRouter()
 const isCheckedIn = ref(false)
 const checkInDays = ref(0)
+const maxInDays = ref(0)
 const totalCoins = ref(0)
 const todayCoins = ref(10)
-const currentDate = ref('')
 const currentMonth = ref('')
 const currentYear = ref(new Date().getFullYear())
 const currentMonthNum = ref(new Date().getMonth() + 1)
 
-const weekdays = ['日', '一', '二', '三', '四', '五', '六']
 const recentCoins = ref<CoinRecord[]>([])
 const topUsers = ref<RankUser[]>([])
 
@@ -214,56 +208,11 @@ const getCurrentDate = () => {
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
-  currentDate.value = `${year}-${month}-${day}`
   currentMonth.value = `${year}年${month}月`
 }
 
 // 计算日历天数
-const calendarDays = computed(() => {
-  const days = []
-  const firstDay = new Date(currentYear.value, currentMonthNum.value - 1, 1)
-  const lastDay = new Date(currentYear.value, currentMonthNum.value, 0)
-
-  // 上个月的日期
-  const firstDayWeek = firstDay.getDay()
-  for (let i = firstDayWeek - 1; i >= 0; i--) {
-    const date = new Date(currentYear.value, currentMonthNum.value - 1, -i)
-    days.push({
-      day: date.getDate(),
-      date: formatDate(date),
-      checked: isDateChecked(date),
-      isToday: false,
-      isOtherMonth: true
-    })
-  }
-
-  // 当前月的日期
-  for (let i = 1; i <= lastDay.getDate(); i++) {
-    const date = new Date(currentYear.value, currentMonthNum.value - 1, i)
-    days.push({
-      day: i,
-      date: formatDate(date),
-      checked: isDateChecked(date),
-      isToday: isToday(date),
-      isOtherMonth: false
-    })
-  }
-
-  // 下个月的日期
-  const remainingDays = 42 - days.length
-  for (let i = 1; i <= remainingDays; i++) {
-    const date = new Date(currentYear.value, currentMonthNum.value, i)
-    days.push({
-      day: i,
-      date: formatDate(date),
-      checked: isDateChecked(date),
-      isToday: false,
-      isOtherMonth: true
-    })
-  }
-
-  return days
-})
+const calendarDays = ref<any []>([]);
 
 // 格式化日期
 const formatDate = (date: Date) => {
@@ -273,13 +222,18 @@ const formatDate = (date: Date) => {
   return `${year}-${month}-${day}`
 }
 
-// 判断是否是今天
-const isToday = (date: Date) => {
-  const today = new Date()
+// 判断是否是今天（适配字符串格式：'YYYY-MM-DD'）
+const isToday = (dateStr: string) => {
+  // 1. 将字符串日期转为Date对象（关键步骤）
+  const date = new Date(dateStr);
+  // 2. 获取今日日期（本地时间）
+  const today = new Date();
+  
+  // 3. 沿用原逻辑：对比年、月、日
   return date.getFullYear() === today.getFullYear() &&
          date.getMonth() === today.getMonth() &&
-         date.getDate() === today.getDate()
-}
+         date.getDate() === today.getDate();
+};
 
 // 判断日期是否已打卡
 const isDateChecked = (date: Date) => {
@@ -302,85 +256,106 @@ const changeMonth = (delta: number) => {
 }
 
 // 打卡
-const handleCheckIn = () => {
+const handleCheckIn = async () => {
   if (isCheckedIn.value) {
     ElMessage.warning('今日已打卡')
     return
   }
 
-  // 保存打卡记录
-  const checkInRecords = JSON.parse(localStorage.getItem('checkInRecords') || '[]')
-  checkInRecords.push(currentDate.value)
-  localStorage.setItem('checkInRecords', JSON.stringify(checkInRecords))
+  try {
+    const res: any = await request.post('/checkin/get');
+    console.log('checkin res', res);  
 
-  // 更新连续打卡天数
-  checkInDays.value++
-  localStorage.setItem('checkInDays', String(checkInDays.value))
+    if (res.code === 200) {
+      await loadDateData();
+      await loadPointData();
+      ElMessage.success(`打卡成功！获得 ${todayCoins.value} 积分`)
+    } else {
+      ElMessage.error('打卡失败'+ res.message);
+    }
+  } catch (error) {
+    ElMessage.error('打卡失败');
+    console.log("Error checkin", error);
+  } finally {
 
-  // 更新积分
-  totalCoins.value += todayCoins.value
-  localStorage.setItem('totalCoins', String(totalCoins.value))
+  }
+}
 
-  // 添加积分记录
-  const coinRecords = JSON.parse(localStorage.getItem('coinRecords') || '[]')
-  coinRecords.unshift({
-    id: Date.now().toString(),
-    title: '每日打卡',
-    coins: todayCoins.value,
-    time: new Date().toLocaleString()
-  })
-  localStorage.setItem('coinRecords', JSON.stringify(coinRecords))
+// 加载日期数据
+const loadDateData = async () => {
+  const res = await request.get('/checkin/calendar', { params: { year: currentYear.value, month: currentMonthNum.value} });
+  console.log('res',res)
+  const newDays = Array.from(res.data.calendar.days).map((day: any) => ({
+    day: day.day,
+    date: day.date,
+    checked: day.isCheckin,
+    isToday: isToday(day.date),
+  }));
+  calendarDays.value = newDays;
+}
 
-  isCheckedIn.value = true
-  ElMessage.success(`打卡成功！获得 ${todayCoins.value} 积分`)
+// 加载今日是否打卡成功
+const loadCheckInToday = async () => {
+  try {
+    const res:any = await request.get('/checkin/today');
+    console.log('getToday res',res)
+
+    if(res.code === 200) {
+      isCheckedIn.value = res.data.isCheckin;
+    } else {
+      console.log("Error checkin today !200", res.message)
+    }
+
+
+  } catch (error) {
+    console.log('Error checkin today', error)
+  }
 }
 
 // 加载打卡数据
-const loadCheckInData = () => {
-  const checkInRecords = JSON.parse(localStorage.getItem('checkInRecords') || '[]')
-  isCheckedIn.value = checkInRecords.includes(currentDate.value)
+const loadCheckInData = async() => {
+  try{
+    const res: any = await request.get('/checkin/continuousStats');
+    console.log('getContinu res',res)
+    if(res.code === 200) {
+      checkInDays.value = res.data.stats.currentContinuousDays;
+      maxInDays.value = res.data.stats.totalCheckinDays;
 
-  checkInDays.value = parseInt(localStorage.getItem('checkInDays') || '0')
-  totalCoins.value = parseInt(localStorage.getItem('totalCoins') || '0')
+      recentCoins.value = res.data.stats.recentCheckins;
+
+    } else {
+      console.log('Error getContinue data !200', res.message);
+    }
+  } catch (error){
+    console.log('Error getContinue data', error)
+  }
 }
 
-// 加载积分记录
-const loadCoinRecords = () => {
-  const records = JSON.parse(localStorage.getItem('coinRecords') || '[]')
-  recentCoins.value = records.slice(0, 5)
+// 加载用户的积分数据
+const loadPointData = async () => {
+  try {
+    const res: any = await request.get('/checkin/points');
+    console.log('getPoint res',res)
+    if(res.code === 200) {
+      totalCoins.value = res.data.points.totalPoints;
+    } else {
+      console.log('Error getPoint data !200', res.message);
+    }
+  } catch(error){
+    console.log('Error getPoint data', error)
+  }
 }
 
 // 加载排行榜数据
-const loadRankData = () => {
-  const stored = localStorage.getItem('rankUsers')
-  if (stored) {
-    topUsers.value = JSON.parse(stored)
-  } else {
-    // 初始化示例数据
-    topUsers.value = [
-      {
-        id: '1',
-        username: '张三',
-        avatar: '',
-        days: 30,
-        coins: 300
-      },
-      {
-        id: '2',
-        username: '李四',
-        avatar: '',
-        days: 25,
-        coins: 250
-      },
-      {
-        id: '3',
-        username: '王五',
-        avatar: '',
-        days: 20,
-        coins: 200
-      }
-    ]
-    localStorage.setItem('rankUsers', JSON.stringify(topUsers.value))
+const loadRankData = async () => {
+
+  try{
+    const res: any = await request.get('/checkin/ranking');
+    console.log('get checkin ranking res', res);
+    
+    topUsers.value = res.data.ranking.list;
+  } catch (error) {
+    console.log('Error getRank data', error)
   }
 }
 
@@ -393,9 +368,11 @@ const goToRank = () => {
 }
 
 onMounted(() => {
+  loadDateData()
+  loadPointData()
+  loadCheckInToday()
   getCurrentDate()
   loadCheckInData()
-  loadCoinRecords()
   loadRankData()
 })
 </script>
@@ -527,10 +504,6 @@ onMounted(() => {
 
 .calendar-day.is-today {
   border: 2px solid #409EFF;
-}
-
-.calendar-day.is-other-month {
-  opacity: 0.4;
 }
 
 .coins-content {

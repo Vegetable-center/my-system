@@ -14,14 +14,15 @@
             <div class="user-info">
               <div class="avatar-wrapper">
                 <el-avatar :size="100" :src="userInfo.avatar">
-                  {{ userInfo.username ? userInfo.username.charAt(0).toUpperCase() : 'U' }}
+                  {{ userInfo.userName ? userInfo.userName.charAt(0).toUpperCase() : 'U' }}
                 </el-avatar>
-                <el-button type="primary" size="small" circle @click="showEditDialog">
+                <el-button type="primary" size="small" circle @click="showEditDialog" v-if="isSelf">
                   <el-icon><Edit /></el-icon>
                 </el-button>
               </div>
-              <h3 class="username">{{ userInfo.username }}</h3>
+              <h3 class="username">{{ userInfo.userName }}</h3>
               <p class="user-bio">{{ userInfo.signature || '这个人很懒，什么都没留下...' }}</p>
+              <el-button type="primary" style="margin-top: 20px; width: 160px;" @click="followUser" v-if="!isSelf">{{ isFollowing ? '取消关注' : '关注'}}</el-button>
             </div>
             <el-divider />
             <div class="user-stats">
@@ -30,11 +31,11 @@
                 <div class="stat-label">帖子</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value">{{ followingList.length }}</div>
+                <div class="stat-value">{{ userInfo.followings.length }}</div>
                 <div class="stat-label">关注</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value">{{ followersList.length }}</div>
+                <div class="stat-value">{{ userInfo.followers.length }}</div>
                 <div class="stat-label">粉丝</div>
               </div>
             </div>
@@ -58,11 +59,11 @@
                 <el-icon><User /></el-icon>
                 <span>我的粉丝</span>
               </el-menu-item>
-              <el-menu-item index="stats">
-                <el-icon><TrendCharts /></el-icon>
-                <span>数据看板</span>
+              <el-menu-item index="goods" v-if="isSelf">
+                <el-icon><Star /></el-icon>
+                <span>商品兑换记录</span>
               </el-menu-item>
-              <el-menu-item index="settings">
+              <el-menu-item index="settings" v-if="isSelf">
                 <el-icon><Setting /></el-icon>
                 <span>账号设置</span>
               </el-menu-item>
@@ -107,12 +108,41 @@
                   <el-button type="primary" link @click="viewPost(post.id)">
                     查看
                   </el-button>
-                  <el-button type="danger" link @click="deletePost(post.id)">
+                  <el-button type="danger" link @click="deletePost(post.id)" v-if="isSelf">
                     删除
                   </el-button>
                 </div>
               </div>
               <el-empty v-if="myPosts.length === 0" description="暂无帖子" />
+            </div>
+          </el-card>
+
+          <!-- 我的帖子 -->
+          <el-card v-if="activeTab === 'goods'" class="content-card">
+            <template #header>
+              <div class="card-header">
+                <span>商品兑换记录</span>
+              </div>
+            </template>
+            <div class="post-list">
+              <div v-for="good in myGoods" :key="good.id" class="post-item">
+                <el-image :src="good.image" fit="cover" class="post-cover">
+                  <template #error>
+                    <div class="image-slot">
+                      <el-icon :size="40"><Picture /></el-icon>
+                    </div>
+                  </template>
+                </el-image>
+                <div class="post-info">
+                  <h4 class="post-title">{{ good.goodsName }}</h4>
+                  <p class="post-desc">{{ good.description }}</p>
+                  <div class="post-meta">
+                    <span class="meta-item">兑换价格：{{ good.points }} 积分</span>
+                    <span class="meta-item">{{formatUploadTime(good.createdAt) }}</span>
+                  </div>
+                </div>
+              </div>
+              <el-empty v-if="myGoods.length === 0" description="暂无帖子" />
             </div>
           </el-card>
 
@@ -128,7 +158,7 @@
               </div>
             </template>
             <div class="user-list">
-              <div v-for="user in followingList" :key="user.id" class="user-item">
+              <div v-for="user in followingList" :key="user.id" class="user-item" style="cursor: pointer;" @click="goOther(user.id)">
                 <el-avatar :size="48" :src="user.avatar">
                   {{ user.username.charAt(0).toUpperCase() }}
                 </el-avatar>
@@ -152,7 +182,7 @@
               </div>
             </template>
             <div class="user-list">
-              <div v-for="user in followersList" :key="user.id" class="user-item">
+              <div v-for="user in followersList" :key="user.id" class="user-item"  style="cursor: pointer;" @click="goOther(user.id)">
                 <el-avatar :size="48" :src="user.avatar">
                   {{ user.username.charAt(0).toUpperCase() }}
                 </el-avatar>
@@ -160,14 +190,14 @@
                   <h4 class="user-name">{{ user.username }}</h4>
                   <p class="user-bio">{{ user.bio || '这个人很懒，什么都没留下...' }}</p>
                 </div>
-                <el-button 
+                <!-- <el-button 
                   type="primary" 
                   link 
                   @click="followUser(user)"
                   :disabled="isFollowing(user.id)"
                 >
                   {{ isFollowing(user.id) ? '已关注' : '关注' }}
-                </el-button>
+                </el-button> -->
               </div>
               <el-empty v-if="followersList.length === 0" description="暂无粉丝" />
             </div>
@@ -186,7 +216,7 @@
               </el-form-item>
               <el-form-item label="个性签名">
                 <el-input
-                  v-model="settingsForm.bio"
+                  v-model="settingsForm.signature"
                   type="textarea"
                   :rows="3"
                   placeholder="请输入个性签名"
@@ -201,43 +231,6 @@
             </el-form>
           </el-card>
 
-          <!-- 数据看板 -->
-          <el-card v-if="activeTab === 'stats'" class="content-card">
-            <template #header>
-              <div class="card-header">
-                <span>创作数据</span>
-                <el-button type="primary" link @click="goToStats">
-                  查看详情
-                </el-button>
-              </div>
-            </template>
-            <el-row :gutter="20">
-              <el-col :xs="24" :sm="12" :md="6" :lg="6" :xl="6">
-                <div class="stat-item">
-                  <div class="stat-value">{{ myPosts.length }}</div>
-                  <div class="stat-label">发布帖子</div>
-                </div>
-              </el-col>
-              <el-col :xs="24" :sm="12" :md="6" :lg="6" :xl="6">
-                <div class="stat-item">
-                  <div class="stat-value">{{ totalViews }}</div>
-                  <div class="stat-label">总浏览量</div>
-                </div>
-              </el-col>
-              <el-col :xs="24" :sm="12" :md="6" :lg="6" :xl="6">
-                <div class="stat-item">
-                  <div class="stat-value">{{ totalLikes }}</div>
-                  <div class="stat-label">总点赞数</div>
-                </div>
-              </el-col>
-              <el-col :xs="24" :sm="12" :md="6" :lg="6" :xl="6">
-                <div class="stat-item">
-                  <div class="stat-value">{{ totalComments }}</div>
-                  <div class="stat-label">总评论数</div>
-                </div>
-              </el-col>
-            </el-row>
-          </el-card>
         </el-col>
       </el-row>
     </el-main>
@@ -282,8 +275,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Edit, 
@@ -299,19 +292,11 @@ import {
 import request from '@/utils/request'
 
 interface UserInfo {
-  username: string
+  userName: string
   avatar: string
   signature: string
-}
-
-interface Post {
-  id: string
-  title: string
-  content: string
-  cover: string
-  views: number
-  likes: number
-  createTime: string
+  followers: any[]
+  followings: any[]
 }
 
 interface FollowUser {
@@ -320,16 +305,19 @@ interface FollowUser {
   avatar: string
   bio: string
 }
-
+const route = useRoute();
 const router = useRouter()
 const activeTab = ref('posts')
 const userInfo = ref<UserInfo>({
-  username: '',
+  userName: '',
   avatar: '',
-  signature: ''
+  signature: '',
+  followers: [],
+  followings: []
 })
 
 const myPosts = ref<any>([])
+const myGoods = ref<any>([])
 const followingList = ref<FollowUser[]>([])
 const followersList = ref<FollowUser[]>([])
 
@@ -352,15 +340,25 @@ const followForm = ref({
   username: ''
 })
 
+const id = ref(route.params.id || localStorage.getItem('userId'));
+const isSelf = computed(() => {
+  const userId = localStorage.getItem('userId');
+  return userId === id.value;
+})
+const isFollowing = computed(() => {
+  return userInfo.value.followers.some((follower: any) => follower.id == localStorage.getItem('userId'));
+})
 // 加载用户信息
 const loadUserInfo = async () => {
-  const userId = localStorage.getItem('userId');
   try {
-    const res: any = await request.get(`/user/userInfo/${userId}`);
+    id.value = route.params.id || localStorage.getItem('userId')
+    const res: any = await request.get(`/user/userInfo/${id.value}`);
     if(res.code === 200) {
       console.log('getuser res', res);
-      userInfo.value.username = res.data.userName;
+      userInfo.value.userName = res.data.userName;
       userInfo.value.signature = res.data.signature;
+      userInfo.value.followers = res.data.followers;
+      userInfo.value.followings = res.data.followings;
 
       myPosts.value = res.data.posts;
       followingList.value = res.data.followings;
@@ -374,6 +372,17 @@ const loadUserInfo = async () => {
     }
   } catch {
     ElMessage.error('获取用户信息失败，系统错误，请稍后重试');
+  }
+}
+
+const loadMyGoods = async () => {
+  try {
+    const res: any = await request.get(`/mall/exchangeRecords`);
+    console.log('get goods res', res);
+    myGoods.value = res.list;
+  } catch (error){
+    ElMessage.error('获取用户兑换记录失败,请稍后重试');
+    console.log("get goods error", error);
   }
 }
 
@@ -470,6 +479,7 @@ const handleFollow = () => {
   followForm.value.username = ''
 }
 
+// 取消关注方法 
 const unfollow = (id: string) => {
   ElMessageBox.confirm(
     '确定要取消关注吗?',
@@ -480,49 +490,74 @@ const unfollow = (id: string) => {
       type: 'warning',
     }
   )
-    .then(() => {
-      followingList.value = followingList.value.filter(user => user.id !== id)
-      localStorage.setItem('following', JSON.stringify(followingList.value))
-      ElMessage.success('已取消关注')
+    .then(async () => {
+      try {
+        const res: any = await request.post(`/user/follow`,{
+          targetUserId: id,
+          action: 'unfollow',
+        })
+        if(res.code === 200) {
+          console.log('follow res', res);
+          loadUserInfo();
+        } else {
+          ElMessage.error('取消失败');
+          console.log('Error', res.message);
+        }
+
+      } catch(error) {
+        ElMessage.error('取消失败');
+        console.log('Error', error);
+      } 
     })
     .catch(() => {
       // 用户取消操作
     })
 }
+// 关注方法
+const followUser = async() => {
+  const action = isFollowing.value ? 'unfollow' : 'follow';
+  try {
+    const res: any = await request.post(`/user/follow`,{
+      targetUserId: id.value,
+      action,
+    })
+    if(res.code === 200) {
+      console.log('follow res', res);
+      loadUserInfo();
+      action === 'follow' ? ElMessage.success('关注成功') : ElMessage.success('取消关注成功');
+    } else {
+      ElMessage.error('关注失败');
+      console.log('Error', res.message);
+    }
+    
+  } catch(error) {
+    ElMessage.error('关注失败');
+    console.log('Error', error);
+  } finally {
 
-const followUser = (user: FollowUser) => {
-  followingList.value.unshift(user)
-  localStorage.setItem('following', JSON.stringify(followingList.value))
-  ElMessage.success('关注成功')
-}
-
-const isFollowing = (userId: string) => {
-  return followingList.value.some(user => user.id === userId)
-}
-
-// 计算总数据
-const totalViews = computed(() => {
-  return myPosts.value.reduce((sum: any, p: any) => sum + p.views, 0)
-})
-
-const totalLikes = computed(() => {
-  return myPosts.value.reduce((sum: any, p: any) => sum + p.likes, 0)
-})
-
-const totalComments = computed(() => {
-  return myPosts.value.reduce((sum: any, p: any) => sum + (p.comments || 0), 0)
-})
-
-const goToStats = () => {
-  router.push('/post-stats')
+  }
 }
 
 onMounted(() => {
   loadUserInfo()
+  loadMyGoods()
 })
 const goHome = () => {
   router.push('/');
 }
+const goOther = (id: string) => {
+  activeTab.value = 'posts';
+  router.push(`/profile/${id}`);
+}
+watch(
+  () => route.params.id, // 监听id参数
+  (newId, oldId) => {
+    if (newId !== oldId) { // 避免初始加载重复请求
+      loadUserInfo();
+    }
+  },
+  { immediate: false } // 关闭立即执行（onMounted已执行）
+);
 function formatUploadTime(isoTime: any): string {
   const date = new Date(isoTime);
   // 转换为本地时间，补零处理
@@ -578,7 +613,7 @@ function formatUploadTime(isoTime: any): string {
 
 .user-info {
   text-align: center;
-  padding: 20px 0;
+  padding: 20px 0 0;
 }
 
 .avatar-wrapper {

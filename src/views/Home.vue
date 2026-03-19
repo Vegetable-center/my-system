@@ -240,6 +240,9 @@ const test = async () => {
 </script>
 
 <style scoped>
+.el-button+.el-button {
+  margin-left: 0;
+}
 .home-container {
   min-height: 100vh;
   background: #f0f2f5;

@@ -30,7 +30,7 @@
                 <span class="post-time">{{ postInfo.createdAt }}</span>
               </div>
               <div class="post-text">{{ postInfo.content }}</div>
-              <div class="post-author">
+              <div class="post-author" style="cursor: pointer;" @click="goAuthor(postInfo.userId)">
                 <el-avatar :size="40" :src="postInfo.avatar"></el-avatar>
                 <div class="author-info">
                   <div class="author-name">{{ postInfo.userName }}</div>
@@ -197,6 +197,7 @@ interface Post {
   coverImage: string
   category: string
   userName: string
+  userId: number
   avatar: string
   viewCount: number
   likeCount: number
@@ -226,6 +227,7 @@ const postInfo = ref<Post>({
   coverImage: '',
   category: '',
   userName: '',
+  userId: 0,
   avatar: '',
   viewCount: 0,
   likeCount: 0,
@@ -393,6 +395,10 @@ const submitComment = async() => {
 
 const goBack = () => {
   router.push('/community/list')
+}
+
+const goAuthor = (id: number) => {
+  router.push(`/profile/${id}`);
 }
 
 const viewDetail = (id: string) => {

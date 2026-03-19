@@ -100,7 +100,13 @@ const routes = [
   },
   {
     path: '/profile',
-    name: 'Profile',
+    name: 'ProfileSelf',
+    component: () => import('@/views/Profile.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/profile/:id',
+    name: 'ProfileOther',
     component: () => import('@/views/Profile.vue'),
     meta: { requiresAuth: true }
   },

@@ -29,34 +29,26 @@
           <el-option label="优惠券" value="coupon" />
           <el-option label="礼品" value="gift" />
         </el-select>
-        <el-select v-model="filterStatus" placeholder="上架状态" clearable @change="handleFilter">
-          <el-option label="全部" value="" />
-          <el-option label="已上架" value="online" />
-          <el-option label="已下架" value="offline" />
-        </el-select>
       </div>
 
       <div class="product-list">
         <el-card v-for="product in filteredProducts" :key="product.id" class="product-card">
           <div class="product-cover" @click="viewProduct(product)">
-            <el-image :src="product.cover" fit="cover">
+            <el-image :src="product.image" fit="cover">
               <template #error>
                 <div class="image-slot">
                   <el-icon :size="40"><Goods /></el-icon>
                 </div>
               </template>
             </el-image>
-            <div class="product-status" :class="'status-' + product.status">
-              {{ product.status === 'online' ? '已上架' : '已下架' }}
-            </div>
           </div>
           <div class="product-content">
-            <h3 class="product-title" @click="viewProduct(product)">{{ product.title }}</h3>
+            <h3 class="product-title" @click="viewProduct(product)">{{ product.name }}</h3>
             <p class="product-desc">{{ product.description }}</p>
             <div class="product-meta">
               <div class="meta-item">
                 <el-icon><Coin /></el-icon>
-                <span class="price">{{ product.price }} 积分</span>
+                <span class="price">{{ product.points }} 积分</span>
               </div>
               <div class="meta-item">
                 <el-icon><ShoppingCart /></el-icon>
@@ -67,41 +59,7 @@
                 <span>已兑换: {{ product.sold || 0 }}</span>
               </div>
             </div>
-            <div class="product-tags">
-              <el-tag 
-                v-for="tag in product.tags" 
-                :key="tag" 
-                size="small"
-                class="tag-item"
-              >
-                {{ tag }}
-              </el-tag>
-            </div>
             <div class="product-actions">
-              <el-button 
-                v-if="product.status === 'offline'"
-                type="success" 
-                @click="onlineProduct(product)"
-              >
-                <el-icon><Top /></el-icon>
-                上架
-              </el-button>
-              <el-button 
-                v-if="product.status === 'online'"
-                type="warning" 
-                @click="offlineProduct(product)"
-              >
-                <el-icon><Bottom /></el-icon>
-                下架
-              </el-button>
-              <el-button 
-                type="primary" 
-                link
-                @click="editProduct(product)"
-              >
-                <el-icon><Edit /></el-icon>
-                编辑
-              </el-button>
               <el-button 
                 type="danger" 
                 link
@@ -122,14 +80,14 @@
       <el-form :model="productForm" label-width="100px">
         <el-form-item label="商品名称">
           <el-input 
-            v-model="productForm.title" 
+            v-model="productForm.name" 
             placeholder="请输入商品名称" 
             maxlength="50"
             show-word-limit
           />
         </el-form-item>
         <el-form-item label="商品分类">
-          <el-select v-model="productForm.category" placeholder="请选择分类">
+          <el-select v-model="productForm.type" placeholder="请选择分类">
             <el-option label="课程" value="course" />
             <el-option label="优惠券" value="coupon" />
             <el-option label="礼品" value="gift" />
@@ -159,7 +117,7 @@
         </el-form-item>
         <el-form-item label="所需积分">
           <el-input-number 
-            v-model="productForm.price" 
+            v-model="productForm.points" 
             :min="0" 
             :precision="0"
             style="width: 100%"
@@ -172,31 +130,6 @@
             :precision="0"
             style="width: 100%"
           />
-        </el-form-item>
-        <el-form-item label="商品标签">
-          <div class="tags-input">
-            <el-tag
-              v-for="tag in productForm.tags"
-              :key="tag"
-              closable
-              @close="removeTag(tag)"
-              class="tag-item"
-            >
-              {{ tag }}
-            </el-tag>
-            <el-input
-              v-if="inputVisible"
-              ref="inputRef"
-              v-model="inputValue"
-              class="tag-input"
-              size="small"
-              @keyup.enter="handleInputConfirm"
-              @blur="handleInputConfirm"
-            />
-            <el-button v-else class="button-new-tag" size="small" @click="showInput">
-              + 新标签
-            </el-button>
-          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -223,18 +156,18 @@ import {
   Delete,
   Plus
 } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 
 interface Product {
   id: string
-  title: string
+  name: string
   description: string
-  cover: string
-  category: string
-  price: number
+  image: string
+  type: string
+  points: number
   stock: number
   sold?: number
   status: 'online' | 'offline'
-  tags: string[]
 }
 
 const router = useRouter()
@@ -244,34 +177,30 @@ const filterCategory = ref('')
 const filterStatus = ref('')
 const dialogVisible = ref(false)
 const isEdit = ref(false)
-const inputVisible = ref(false)
-const inputValue = ref('')
-const inputRef = ref()
 
 const productForm = ref({
-  id: '',
-  title: '',
-  category: '',
-  cover: '',
+  name: '',
+  type: '',
+  image: '',
   description: '',
-  price: 0,
+  points: 0,
   stock: 100,
-  tags: [] as string[]
 })
 
 // 根据搜索和筛选条件过滤商品
 const filteredProducts = computed(() => {
   let result = productList.value
+  console.log('result', result)
 
   if (searchKeyword.value) {
     result = result.filter(product => 
-      product.title.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
+      product.name.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
       product.description.toLowerCase().includes(searchKeyword.value.toLowerCase())
     )
   }
 
   if (filterCategory.value) {
-    result = result.filter(product => product.category === filterCategory.value)
+    result = result.filter(product => product.type === filterCategory.value)
   }
 
   if (filterStatus.value) {
@@ -282,49 +211,56 @@ const filteredProducts = computed(() => {
 })
 
 // 加载商品列表
-const loadProducts = () => {
-  const stored = localStorage.getItem('shopProducts')
-  if (stored) {
-    productList.value = JSON.parse(stored)
-  } else {
-    // 初始化示例数据
-    productList.value = [
-      {
-        id: '1',
-        title: '方言学习课程优惠券',
-        description: '可用于兑换任意方言学习课程',
-        cover: '',
-        category: 'coupon',
-        price: 500,
-        stock: 100,
-        status: 'online',
-        tags: ['优惠券', '课程']
-      },
-      {
-        id: '2',
-        title: '线下课程体验券',
-        description: '可用于兑换线下课程体验资格',
-        cover: '',
-        category: 'coupon',
-        price: 800,
-        stock: 50,
-        status: 'online',
-        tags: ['优惠券', '线下']
-      },
-      {
-        id: '3',
-        title: '方言学习资料包',
-        description: '包含多种方言的学习资料',
-        cover: '',
-        category: 'gift',
-        price: 300,
-        stock: 200,
-        status: 'online',
-        tags: ['资料', '学习']
-      }
-    ]
-    localStorage.setItem('shopProducts', JSON.stringify(productList.value))
-  }
+const loadProducts = async () => {
+
+  const res: any = await request.get('/mall/goods');
+  console.log("get goods res: ", res);
+
+  productList.value = res.list;
+  console.log(productList.value)
+
+  // const stored = localStorage.getItem('shopProducts')
+  // if (stored) {
+  //   productList.value = JSON.parse(stored)
+  // } else {
+  //   // 初始化示例数据
+  //   // productList.value = [
+  //   //   {
+  //   //     id: '1',
+  //   //     title: '方言学习课程优惠券',
+  //   //     description: '可用于兑换任意方言学习课程',
+  //   //     cover: '',
+  //   //     category: 'coupon',
+  //   //     price: 500,
+  //   //     stock: 100,
+  //   //     status: 'online',
+  //   //     tags: ['优惠券', '课程']
+  //   //   },
+  //   //   {
+  //   //     id: '2',
+  //   //     title: '线下课程体验券',
+  //   //     description: '可用于兑换线下课程体验资格',
+  //   //     cover: '',
+  //   //     category: 'coupon',
+  //   //     price: 800,
+  //   //     stock: 50,
+  //   //     status: 'online',
+  //   //     tags: ['优惠券', '线下']
+  //   //   },
+  //   //   {
+  //   //     id: '3',
+  //   //     title: '方言学习资料包',
+  //   //     description: '包含多种方言的学习资料',
+  //   //     cover: '',
+  //   //     category: 'gift',
+  //   //     price: 300,
+  //   //     stock: 200,
+  //   //     status: 'online',
+  //   //     tags: ['资料', '学习']
+  //   //   }
+  //   // ]
+  //   localStorage.setItem('shopProducts', JSON.stringify(productList.value))
+  // }
 }
 
 // 搜索
@@ -341,70 +277,6 @@ const handleFilter = () => {
 const viewProduct = (product: Product) => {
   // 跳转到商品详情页（暂未实现）
   console.log('查看商品:', product)
-}
-
-// 上架商品
-const onlineProduct = (product: Product) => {
-  ElMessageBox.confirm(
-    '确定要上架该商品吗？',
-    '提示',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'success',
-    }
-  )
-    .then(() => {
-      const index = productList.value.findIndex(p => p.id === product.id)
-      if (index > -1) {
-        productList.value[index].status = 'online'
-        localStorage.setItem('shopProducts', JSON.stringify(productList.value))
-        ElMessage.success('商品已上架')
-      }
-    })
-    .catch(() => {
-      // 用户取消操作
-    })
-}
-
-// 下架商品
-const offlineProduct = (product: Product) => {
-  ElMessageBox.confirm(
-    '确定要下架该商品吗？',
-    '提示',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    }
-  )
-    .then(() => {
-      const index = productList.value.findIndex(p => p.id === product.id)
-      if (index > -1) {
-        productList.value[index].status = 'offline'
-        localStorage.setItem('shopProducts', JSON.stringify(productList.value))
-        ElMessage.success('商品已下架')
-      }
-    })
-    .catch(() => {
-      // 用户取消操作
-    })
-}
-
-// 编辑商品
-const editProduct = (product: Product) => {
-  isEdit.value = true
-  productForm.value = {
-    id: product.id,
-    title: product.title,
-    category: product.category,
-    cover: product.cover,
-    description: product.description,
-    price: product.price,
-    stock: product.stock,
-    tags: [...product.tags]
-  }
-  dialogVisible.value = true
 }
 
 // 删除商品
@@ -435,21 +307,19 @@ const deleteProduct = (id: string) => {
 const showCreateDialog = () => {
   isEdit.value = false
   productForm.value = {
-    id: '',
-    title: '',
-    category: '',
-    cover: '',
+    name: '',
+    type: '',
+    image: '',
     description: '',
-    price: 0,
+    points: 0,
     stock: 100,
-    tags: []
   }
   dialogVisible.value = true
 }
 
 // 封面上传成功
 const handleCoverSuccess = (response: any) => {
-  productForm.value.cover = response.url
+  productForm.value.image = response.url
   ElMessage.success('封面上传成功')
 }
 
@@ -469,70 +339,31 @@ const beforeCoverUpload = (file: File) => {
   return true
 }
 
-// 显示标签输入框
-const showInput = () => {
-  inputVisible.value = true
-  nextTick(() => {
-    inputRef.value.focus()
-  })
-}
-
-// 确认添加标签
-const handleInputConfirm = () => {
-  if (inputValue.value) {
-    if (productForm.value.tags.length >= 5) {
-      ElMessage.warning('最多添加5个标签')
-      return
-    }
-    if (productForm.value.tags.includes(inputValue.value)) {
-      ElMessage.warning('标签已存在')
-      return
-    }
-    productForm.value.tags.push(inputValue.value)
-  }
-  inputVisible.value = false
-  inputValue.value = ''
-}
-
-// 移除标签
-const removeTag = (tag: string) => {
-  const index = productForm.value.tags.indexOf(tag)
-  if (index > -1) {
-    productForm.value.tags.splice(index, 1)
-  }
-}
 
 // 处理提交
-const handleSubmit = () => {
-  if (!productForm.value.title || !productForm.value.category || !productForm.value.description) {
+const handleSubmit = async () => {
+  if (!productForm.value.name || !productForm.value.type || !productForm.value.description) {
     ElMessage.warning('请填写完整信息')
     return
   }
 
-  const product: Product = {
-    id: isEdit.value ? productForm.value.id : Date.now().toString(),
-    title: productForm.value.title,
+  const product = {
+    name: productForm.value.name,
     description: productForm.value.description,
-    cover: productForm.value.cover,
-    category: productForm.value.category,
-    price: productForm.value.price,
+    image: productForm.value.image,
+    type: productForm.value.type,
+    points: productForm.value.points,
     stock: productForm.value.stock,
     status: 'online' as const,
-    tags: productForm.value.tags
   }
 
-  if (isEdit.value) {
-    const index = productList.value.findIndex(p => p.id === product.id)
-    if (index > -1) {
-      productList.value[index] = product
-    }
-  } else {
-    productList.value.unshift(product)
-  }
+  const res: any = await request.post('/mall/goods', product);
+  console.log("createProduct res:", res)
 
   localStorage.setItem('shopProducts', JSON.stringify(productList.value))
   dialogVisible.value = false
   ElMessage.success(isEdit.value ? '修改成功' : '添加成功')
+
 }
 
 onMounted(() => {

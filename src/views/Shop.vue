@@ -34,7 +34,7 @@
         <el-col :xs="24" :sm="12" :md="8" :lg="6" :xl="6" v-for="product in filteredProducts" :key="product.id">
           <el-card class="product-card">
             <div class="product-cover">
-              <el-image :src="product.cover" fit="cover">
+              <el-image :src="product.image" fit="cover">
                 <template #error>
                   <div class="image-slot">
                     <el-icon :size="40"><Picture /></el-icon>
@@ -43,20 +43,30 @@
               </el-image>
             </div>
             <div class="product-content">
-              <h3 class="product-title">{{ product.title }}</h3>
+              <h3 class="product-title">{{ product.name }}</h3>
               <p class="product-desc">{{ product.description }}</p>
               <div class="product-footer">
                 <div class="price">
                   <el-icon :size="16" color="#E6A23C"><Coin /></el-icon>
-                  <span class="value">{{ product.price }}</span>
+                  <span class="value">{{ product.points }}</span>
                 </div>
                 <el-button 
                   type="primary" 
                   size="small"
                   @click="handleExchange(product)"
-                  :disabled="totalCoins < product.price"
+                  :disabled="totalCoins < product.points"
+                  v-if="product.stock > 0"
                 >
-                  {{ totalCoins >= product.price ? '立即兑换' : '积分不足' }}
+                  {{ totalCoins >= product.points ? '立即兑换' : '积分不足' }}
+                </el-button>
+                <el-button 
+                  type="primary" 
+                  size="small"
+                  @click="handleExchange(product)"
+                  :disabled="totalCoins < product.points"
+                  v-else
+                >
+                  当前商品已售空
                 </el-button>
               </div>
             </div>
@@ -70,7 +80,7 @@
     <!-- 兑换确认对话框 -->
     <el-dialog v-model="exchangeDialogVisible" title="确认兑换" width="500px">
       <div class="exchange-content">
-        <el-image :src="selectedProduct?.cover" fit="cover" class="product-preview">
+        <el-image :src="selectedProduct?.image" fit="cover" class="product-preview">
           <template #error>
             <div class="image-slot">
               <el-icon :size="60"><Picture /></el-icon>
@@ -78,11 +88,11 @@
           </template>
         </el-image>
         <div class="product-info">
-          <h3>{{ selectedProduct?.title }}</h3>
+          <h3>{{ selectedProduct?.name }}</h3>
           <p>{{ selectedProduct?.description }}</p>
           <div class="exchange-price">
             <el-icon :size="20" color="#E6A23C"><Coin /></el-icon>
-            <span>{{ selectedProduct?.price }} 积分</span>
+            <span>{{ selectedProduct?.points }} 积分</span>
           </div>
         </div>
       </div>
@@ -106,13 +116,14 @@ import {
   Present,
   Reading
 } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 
 interface Product {
   id: string
-  title: string
+  name: string
   description: string
-  price: number
-  cover: string
+  points: number
+  image: string
   category: string
   stock: number
 }
@@ -146,75 +157,30 @@ const filteredProducts = computed(() => {
 })
 
 // 加载商品列表
-const loadProducts = () => {
-  const stored = localStorage.getItem('shopProducts')
-  if (stored) {
-    productList.value = JSON.parse(stored)
-  } else {
-    // 初始化示例数据
-    productList.value = [
-      {
-        id: '1',
-        title: '方言学习课程优惠券',
-        description: '可用于兑换任意方言学习课程',
-        price: 500,
-        cover: '',
-        category: 'coupon',
-        stock: 100
-      },
-      {
-        id: '2',
-        title: '线下课程体验券',
-        description: '可用于兑换线下课程体验资格',
-        price: 800,
-        cover: '',
-        category: 'coupon',
-        stock: 50
-      },
-      {
-        id: '3',
-        title: '方言学习资料包',
-        description: '包含多种方言的学习资料',
-        price: 300,
-        cover: '',
-        category: 'gift',
-        stock: 200
-      },
-      {
-        id: '4',
-        title: '定制方言学习计划',
-        description: '专业老师为您定制学习计划',
-        price: 1000,
-        cover: '',
-        category: 'course',
-        stock: 20
-      },
-      {
-        id: '5',
-        title: '方言文化书籍',
-        description: '精选方言文化相关书籍',
-        price: 400,
-        cover: '',
-        category: 'gift',
-        stock: 150
-      },
-      {
-        id: '6',
-        title: '一对一辅导课时',
-        description: '专业老师一对一辅导',
-        price: 1500,
-        cover: '',
-        category: 'course',
-        stock: 30
-      }
-    ]
-    localStorage.setItem('shopProducts', JSON.stringify(productList.value))
+const loadProducts = async () => {
+
+  try {
+    const res: any = await request.get('/mall/goods');
+    console.log("products res", res);
+
+    productList.value = res.list;    
+  } catch(err) {
+    console.error('Error loading products:', err)
   }
 }
 
 // 加载用户积分
-const loadUserCoins = () => {
+const loadUserCoins = async () => {
   totalCoins.value = parseInt(localStorage.getItem('totalCoins') || '0')
+
+  try {
+    const res: any = await request.get('/checkin/points')
+    console.log("user points res", res);
+    totalCoins.value = res.data.points.totalPoints;
+
+  } catch (error) {
+    console.error('Error loading user coins:', error)
+  }
 }
 
 // 切换分类
@@ -222,45 +188,36 @@ const changeCategory = (categoryId: string) => {
   currentCategory.value = categoryId
 }
 
+const goodId = ref<any>(0);
 // 兑换商品
 const handleExchange = (product: Product) => {
-  if (totalCoins.value < product.price) {
+  if (totalCoins.value < product.points) {
     ElMessage.warning('积分不足')
     return
   }
-
+  goodId.value = Number(product.id);
   selectedProduct.value = product
   exchangeDialogVisible.value = true
 }
 
 // 确认兑换
-const confirmExchange = () => {
+const confirmExchange = async () => {
   if (!selectedProduct.value) return
 
-  // 扣除积分
-  totalCoins.value -= selectedProduct.value.price
-  localStorage.setItem('totalCoins', String(totalCoins.value))
+  try {
+    const res: any = await request.post(`/mall/exchange/${goodId.value}`);
+    console.log("exchange res", res);
 
-  // 添加兑换记录
-  const exchangeRecords = JSON.parse(localStorage.getItem('exchangeRecords') || '[]')
-  exchangeRecords.unshift({
-    id: Date.now().toString(),
-    productId: selectedProduct.value.id,
-    productName: selectedProduct.value.title,
-    price: selectedProduct.value.price,
-    time: new Date().toLocaleString()
-  })
-  localStorage.setItem('exchangeRecords', JSON.stringify(exchangeRecords))
-
-  // 更新商品库存
-  const productIndex = productList.value.findIndex(p => p.id === selectedProduct.value?.id)
-  if (productIndex > -1) {
-    productList.value[productIndex].stock--
-    localStorage.setItem('shopProducts', JSON.stringify(productList.value))
+    ElMessage.success('兑换成功！')
+    // 重置商品id
+    goodId.value = 0;
+    loadUserCoins()
+    loadProducts()
+  } catch (error) {
+    console.error('Error exchanging product:', error)
+  } finally {
+    exchangeDialogVisible.value = false
   }
-
-  ElMessage.success('兑换成功！')
-  exchangeDialogVisible.value = false
 }
 
 onMounted(() => {

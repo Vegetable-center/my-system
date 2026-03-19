@@ -48,10 +48,10 @@
             <template #header>
               <div class="card-header">
                 <span>课程资源</span>
-                <el-button type="primary" size="small" @click="showAddResourceDialog">
+                <!-- <el-button type="primary" size="small" @click="showAddResourceDialog">
                   <el-icon><Plus /></el-icon>
                   添加资源
-                </el-button>
+                </el-button> -->
               </div>
             </template>
             <div class="resource-list">
@@ -97,35 +97,6 @@
               />
               <div class="progress-text">
                 已完成 {{ progress }}%
-              </div>
-            </div>
-          </el-card>
-
-          <el-card class="stats-card">
-            <template #header>
-              <div class="card-header">
-                <span>资源统计</span>
-              </div>
-            </template>
-            <div class="stats-content">
-              <div class="stat-item">
-                <div class="stat-value">{{ courseInfo.resourceCount }}</div>
-                <div class="stat-label">资源总数</div>
-              </div>
-              <el-divider />
-              <div class="stat-item">
-                <div class="stat-value">{{ resourceList.filter(r => r.type === '视频').length }}</div>
-                <div class="stat-label">视频资源</div>
-              </div>
-              <el-divider />
-              <div class="stat-item">
-                <div class="stat-value">{{ resourceList.filter(r => r.type === '音频').length }}</div>
-                <div class="stat-label">音频资源</div>
-              </div>
-              <el-divider />
-              <div class="stat-item">
-                <div class="stat-value">{{ resourceList.filter(r => r.type === '文档').length }}</div>
-                <div class="stat-label">文档资源</div>
               </div>
             </div>
           </el-card>
