@@ -16,10 +16,10 @@
           </el-button>
           <el-dropdown trigger="click">
             <span class="user-dropdown">
-              <el-avatar :size="32" class="user-avatar">
-                {{ username.charAt(0).toUpperCase() }}
+              <el-avatar :size="32" :src="userInfo.avatar" class="user-avatar">
+                {{ userInfo.userName ? userInfo.userName.charAt(0).toUpperCase() : 'U' }}
               </el-avatar>
-              <span class="username">{{ username }}</span>
+              <span class="username">{{ userInfo.username }}</span>
               <el-icon class="el-icon--right">
                 <arrow-down />
               </el-icon>
@@ -29,10 +29,6 @@
                 <el-dropdown-item @click="goToProfile">
                   <el-icon><User /></el-icon>
                   个人中心
-                </el-dropdown-item>
-                <el-dropdown-item @click="goToFollowList">
-                  <el-icon><UserFilled /></el-icon>
-                  关注管理
                 </el-dropdown-item>
                 <el-dropdown-item divided @click="handleLogout">
                   <el-icon><SwitchButton /></el-icon>
@@ -99,10 +95,6 @@
                 <el-icon><ChatDotRound /></el-icon>
                 社区互动
               </el-button>
-              <el-button type="danger" class="action-button" @click="goToOfflineList">
-                <el-icon><Location /></el-icon>
-                线下课程
-              </el-button>
               <el-button type="info" class="action-button" @click="goToCheckIn">
                 <el-icon><Calendar /></el-icon>
                 学习打卡
@@ -111,10 +103,6 @@
               <el-button type="success" class="action-button" @click="createOnlineCourse">
                 <el-icon><VideoPlay /></el-icon>
                 创建线上课程
-              </el-button>
-              <el-button type="warning" class="action-button" @click="createOfflineCourse">
-                <el-icon><Location /></el-icon>
-                创建线下课程
               </el-button>
             </div>
           </el-card>
@@ -126,7 +114,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Reading, 
@@ -139,22 +127,36 @@ import {
 import request from '@/utils/request'
 import axios from 'axios'
 
+const route = useRoute()
 const router = useRouter()
-const username = ref('')
-const userInfo = ref<any>(null)
+const userInfo = ref<any>({
+  userName: '',
+  avatar: '',
+})
 const unreadCount = ref(0)
+const id = ref(route.params.id || localStorage.getItem('userId'));
 
-onMounted(() => {
-  // 从localStorage获取用户信息
-  const storedUserInfo = localStorage.getItem('userInfo')
-  if (storedUserInfo) {
-    userInfo.value = JSON.parse(storedUserInfo)
-    username.value = userInfo.value.username || '用户'
-    loadUnreadCount()
-  } else {
+const loadUser = async () => {
+  try {
+    id.value = route.params.id || localStorage.getItem('userId')
+    const res: any = await request.get(`/user/userInfo/${id.value}`);
+    if(res.code === 200) {
+      console.log('getuser res', res);
+      userInfo.value.userName = res.data.userName;
+      userInfo.value.avatar = res.data.avatar;
+    } else {
+      ElMessage.error('获取用户信息失败,请稍后重试');
+      // 如果没有用户信息，跳转到登录页
+      router.push('/login')
+    }
+  } catch {
+    ElMessage.error('获取用户信息失败，系统错误，请稍后重试');
     // 如果没有用户信息，跳转到登录页
     router.push('/login')
   }
+}
+onMounted(() => {
+  loadUser();
 })
 
 // 加载未读消息数
@@ -189,9 +191,6 @@ const handleLogout = () => {
     })
 }
 
-const showMessage = () => {
-  ElMessage.info('功能开发中...')
-}
 
 const goToDialectList = () => {
   router.push('/dialect/list')
@@ -209,16 +208,8 @@ const goToProfile = () => {
   router.push('/profile')
 }
 
-const goToOfflineList = () => {
-  router.push('/offline/list')
-}
-
 const goToMessageList = () => {
   router.push('/message/list')
-}
-
-const goToFollowList = () => {
-  router.push('/follow/list')
 }
 
 const goToCheckIn = () => {
@@ -227,10 +218,6 @@ const goToCheckIn = () => {
 
 const createOnlineCourse = () => {
   router.push('/course/online/create')
-}
-
-const createOfflineCourse = () => {
-  router.push('/offline/create')
 }
 
 const test = async () => {

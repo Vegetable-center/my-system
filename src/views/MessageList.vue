@@ -8,7 +8,7 @@
 
     <el-main class="page-main">
       <el-row :gutter="20">
-        <el-col :xs="24" :sm="24" :md="8" :lg="6" :xl="6">
+        <el-col :xs="24" :sm="24" :md="8" :lg="6" :xl="6" style="height: 800px;">
           <el-card class="message-list-card">
             <template #header>
               <div class="card-header">
@@ -56,27 +56,28 @@
                   </el-avatar>
                   <div class="user-detail">
                     <span class="username">{{ currentConversation.username }}</span>
-                    <span class="status">{{ currentConversation.online ? '在线' : '离线' }}</span>
                   </div>
                 </div>
               </div>
             </template>
 
-            <div class="chat-content" v-if="currentConversation">
-              <div class="message-contain" ref="messageContainer">
+            <div class="chat-content" v-if="currentConversation" style="height: 500px;" ref="messageContainer">
+              <div class="message-contain" >
                 <div 
                   v-for="message in messages" 
                   :key="message.id"
                   class="message-item"
-                  :class="{ 'is-self': message.isSelf }"
+                  :class="{ 'is-self': message.senderId != currentUserId }"
                 >
-                  <el-avatar :size="36" :src="message.avatar">
-                    {{ message.username.charAt(0).toUpperCase() }}
+                  <el-avatar :size="36" :src="currentLoadingUser.avatar" v-if="message.senderId != currentUserId">
+                  </el-avatar>
+                  <el-avatar :size="36" :src="currentConversation.avatar" v-else>
                   </el-avatar>
                   <div class="message-bubble">
-                    <div class="message-sender" v-if="!message.isSelf">{{ message.username }}</div>
+                    <div class="message-sender" v-if="message.senderId != currentUserId" style="text-align: right;">{{ currentLoadingUser.username }}</div>
+                    <div class="message-sender" v-else>{{ currentConversation.username }}</div>
                     <div class="message-text">{{ message.content }}</div>
-                    <div class="message-time">{{ message.time }}</div>
+                    <div class="message-time" :style="{ textAlign: message.senderId != currentUserId ? 'right' : 'left' }">{{ message.createdAt }}</div>
                   </div>
                 </div>
                 <el-empty v-if="messages.length === 0" description="暂无消息记录" />
@@ -108,9 +109,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Bell } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 
 interface Conversation {
   id: string
@@ -124,12 +126,12 @@ interface Conversation {
 
 interface Message {
   id: string
-  conversationId: string
+  senderId: string
   username: string
   avatar: string
   content: string
   time: string
-  isSelf: boolean
+  createdAt: string
 }
 
 const conversations = ref<Conversation[]>([])
@@ -138,69 +140,49 @@ const currentConversationId = ref('')
 const inputMessage = ref('')
 const messageContainer = ref<HTMLElement | null>(null)
 
-const currentConversation = computed(() => {
-  return conversations.value.find(c => c.id === currentConversationId.value)
-})
+const currentConversation = ref<any>()
 
 const unreadCount = computed(() => {
-  return conversations.value.reduce((sum, c) => sum + c.unread, 0)
+  // return conversations.value.reduce((sum, c) => sum + c.unread, 0)
+  return 0;
 })
 
+const currentLoadingUser = ref<any>({
+  id: 0,
+  avatar: '',
+  username: '',
+});
+// 加载当前用户信息
+const loadCurrentUser = async () => {
+  const res: any = await request.get('/user/profile');
+  console.log('get current user', res)
+  currentLoadingUser.value = res.data;
+}
+
 // 加载会话列表
-const loadConversations = () => {
-  const stored = localStorage.getItem('conversations')
-  if (stored) {
-    conversations.value = JSON.parse(stored)
-  } else {
-    // 初始化示例数据
-    conversations.value = [
-      {
-        id: '1',
-        username: '张三',
-        avatar: '',
-        lastMessage: '好的，我明白了',
-        lastTime: '10:30',
-        unread: 2,
-        online: true
-      },
-      {
-        id: '2',
-        username: '李四',
-        avatar: '',
-        lastMessage: '请问方言学习有什么建议吗？',
-        lastTime: '昨天',
-        unread: 0,
-        online: false
-      },
-      {
-        id: '3',
-        username: '王五',
-        avatar: '',
-        lastMessage: '谢谢你的分享！',
-        lastTime: '前天',
-        unread: 1,
-        online: true
-      }
-    ]
-    localStorage.setItem('conversations', JSON.stringify(conversations.value))
-  }
+const loadConversations = async () => {
+  const res: any = await request.get('/messages/following');
+  console.log('get following', res)
+  conversations.value = res.data;
+
 }
 
 // 加载消息列表
-const loadMessages = (conversationId: string) => {
-  const allMessages = JSON.parse(localStorage.getItem('messages') || '[]')
-  messages.value = allMessages.filter((m: Message) => m.conversationId === conversationId)
+const loadMessages = async () => {
+  const res = await request.get(`/messages/${currentUserId.value}`);
+  console.log('get messages', res)
+
+  currentConversation.value = conversations.value.find(c => c.id === currentUserId.value)
+  messages.value = res.data;
+  await scrollToBottom()
 }
 
+const currentUserId = ref<any>(0);
+
 // 选择会话
-const selectConversation = (conversation: Conversation) => {
-  currentConversationId.value = conversation.id
-  loadMessages(conversation.id)
-
-  // 清除未读数
-  conversation.unread = 0
-  localStorage.setItem('conversations', JSON.stringify(conversations.value))
-
+const selectConversation = async (conversation: Conversation) => {
+  currentUserId.value = conversation.id;
+  await loadMessages();
   // 滚动到底部
   nextTick(() => {
     scrollToBottom()
@@ -208,39 +190,22 @@ const selectConversation = (conversation: Conversation) => {
 }
 
 // 发送消息
-const sendMessage = () => {
+const sendMessage = async () => {
   if (!inputMessage.value.trim()) {
     ElMessage.warning('请输入消息内容')
     return
   }
 
-  const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
-  const newMessage: Message = {
-    id: Date.now().toString(),
-    conversationId: currentConversationId.value,
-    username: userInfo.username || '我',
-    avatar: userInfo.avatar || '',
+  const res: any = await request.post('/messages', {
     content: inputMessage.value,
-    time: new Date().toLocaleTimeString(),
-    isSelf: true
-  }
+    receiverId: currentUserId.value,
+  })
 
-  // 保存消息
-  const allMessages = JSON.parse(localStorage.getItem('messages') || '[]')
-  allMessages.push(newMessage)
-  localStorage.setItem('messages', JSON.stringify(allMessages))
+  console.log('send message', res);
 
-  // 更新会话的最后一条消息
-  const conversation = conversations.value.find(c => c.id === currentConversationId.value)
-  if (conversation) {
-    conversation.lastMessage = inputMessage.value
-    conversation.lastTime = newMessage.time
-    localStorage.setItem('conversations', JSON.stringify(conversations.value))
-  }
-
-  messages.value.push(newMessage)
   inputMessage.value = ''
-
+  await loadMessages(); 
+  await loadConversations();
   // 滚动到底部
   nextTick(() => {
     scrollToBottom()
@@ -248,14 +213,30 @@ const sendMessage = () => {
 }
 
 // 滚动到底部
-const scrollToBottom = () => {
-  if (messageContainer.value) {
-    messageContainer.value.scrollTop = messageContainer.value.scrollHeight
-  }
+const scrollToBottom = async () => {
+  await nextTick()
+  setTimeout(() => {
+    if (messageContainer.value) {
+      messageContainer.value.scrollTo({
+        top: messageContainer.value.scrollHeight,
+        behavior: 'smooth' // 平滑滚动
+      })
+    }
+  }, 100)
 }
+// 监听消息列表变化，自动滚动到底部
+watch(messages, async () => {
+  await scrollToBottom()
+}, { deep: true })
+
+// 监听会话切换，自动滚动到底部
+watch(currentUserId, async () => {
+  await scrollToBottom()
+})
 
 onMounted(() => {
   loadConversations()
+  loadCurrentUser()
 })
 </script>
 
