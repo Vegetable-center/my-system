@@ -3,8 +3,7 @@
     <el-page-header @back="goBack" class="page-header">
       <template #content>
         <div class="header-content">
-          <span class="course-title">{{ courseInfo.title }}</span>
-          <el-tag :type="getLevelType(courseInfo.level)" size="large">{{ courseInfo.level }}</el-tag>
+          <span class="course-title">{{ courseInfo.name }}</span>
         </div>
       </template>
     </el-page-header>
@@ -28,12 +27,7 @@
                 <div class="meta-item">
                   <el-icon :size="20" color="#67C23A"><Clock /></el-icon>
                   <span class="label">课程时长：</span>
-                  <span class="value">{{ courseInfo.duration }}</span>
-                </div>
-                <div class="meta-item">
-                  <el-icon :size="20" color="#E6A23C"><Document /></el-icon>
-                  <span class="label">资源数量：</span>
-                  <span class="value">{{ courseInfo.resourceCount }} 个</span>
+                  <span class="value">{{ courseInfo.totalLessons }} 课时</span>
                 </div>
               </div>
               <el-divider />
@@ -47,32 +41,22 @@
           <el-card class="resource-card">
             <template #header>
               <div class="card-header">
-                <span>课程资源</span>
-                <!-- <el-button type="primary" size="small" @click="showAddResourceDialog">
-                  <el-icon><Plus /></el-icon>
-                  添加资源
-                </el-button> -->
+                <span>课程视频</span>
               </div>
             </template>
             <div class="resource-list">
               <div v-for="resource in resourceList" :key="resource.id" class="resource-item">
                 <div class="resource-icon">
-                  <el-icon :size="32" :color="getResourceIconColor(resource.type)">
-                    <component :is="getResourceIcon(resource.type)" />
+                  <el-icon :size="32" :color="getResourceIconColor('视频')">
+                    <component :is="getResourceIcon('视频')" />
                   </el-icon>
                 </div>
                 <div class="resource-info">
-                  <h4 class="resource-title">{{ resource.title }}</h4>
-                  <p class="resource-desc">{{ resource.description }}</p>
-                  <div class="resource-meta">
-                    <el-tag size="small" :type="getResourceTagType(resource.type)">
-                      {{ resource.type }}
-                    </el-tag>
-                    <span class="resource-date">{{ resource.createTime }}</span>
-                  </div>
+                  <h4 class="resource-title">{{ resource.lessonName }}</h4>
+                  <p class="resource-desc">第{{ resource.lessonNum }} 节</p>
                 </div>
                 <div class="resource-action">
-                  <el-button type="primary" link @click="viewResource(resource)">
+                  <el-button type="primary" link @click="viewResource(resource.id)">
                     查看
                   </el-button>
                 </div>
@@ -86,74 +70,16 @@
           <el-card class="stats-card">
             <template #header>
               <div class="card-header">
-                <span>学习进度</span>
+                <span>课程讯息</span>
               </div>
             </template>
             <div class="progress-content">
-              <el-progress 
-                :percentage="progress" 
-                :color="progressColor"
-                :stroke-width="20"
-              />
-              <div class="progress-text">
-                已完成 {{ progress }}%
-              </div>
+              <span>暂无该课程的更新公告</span>
             </div>
           </el-card>
         </el-col>
       </el-row>
     </el-main>
-
-    <!-- 添加资源对话框 -->
-    <el-dialog v-model="addResourceDialogVisible" title="添加资源" width="500px">
-      <el-form :model="addResourceForm" label-width="100px">
-        <el-form-item label="资源标题">
-          <el-input v-model="addResourceForm.title" placeholder="请输入资源标题" />
-        </el-form-item>
-        <el-form-item label="资源类型">
-          <el-select v-model="addResourceForm.type" placeholder="请选择资源类型">
-            <el-option label="视频" value="视频" />
-            <el-option label="音频" value="音频" />
-            <el-option label="文档" value="文档" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            v-model="addResourceForm.description"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入资源描述"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="addResourceDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleAddResource">确定</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 查看资源对话框 -->
-    <el-dialog v-model="viewResourceDialogVisible" :title="currentResource?.title" width="600px">
-      <div class="resource-detail">
-        <el-descriptions :column="1" border>
-          <el-descriptions-item label="资源类型">
-            {{ currentResource?.type }}
-          </el-descriptions-item>
-          <el-descriptions-item label="创建时间">
-            {{ currentResource?.createTime }}
-          </el-descriptions-item>
-          <el-descriptions-item label="资源描述">
-            {{ currentResource?.description }}
-          </el-descriptions-item>
-        </el-descriptions>
-        <div class="resource-preview" v-if="currentResource">
-          <el-icon :size="64" :color="getResourceIconColor(currentResource.type)">
-            <component :is="getResourceIcon(currentResource.type)" />
-          </el-icon>
-          <p>资源预览功能开发中...</p>
-        </div>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
@@ -162,25 +88,23 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, VideoPlay, Headset, Document, User, Clock } from '@element-plus/icons-vue'
+import request from '../utils/request'
 
 interface Course {
   id: string
-  title: string
-  level: string
+  name: string
   teacher: string
   duration: string
-  cover: string
+  coverImageUrl: string
   description: string
-  resourceCount: number
+  totalLessons: number
 }
 
 interface CourseResource {
   id: string
   courseId: string
-  title: string
-  type: string
-  description: string
-  createTime: string
+  lessonName: string
+  lessonNum: string
 }
 
 const route = useRoute()
@@ -189,13 +113,12 @@ const courseId = computed(() => route.params.id as string)
 
 const courseInfo = ref<Course>({
   id: '',
-  title: '',
-  level: '',
+  name: '',
   teacher: '',
   duration: '',
-  cover: '',
+  coverImageUrl: '',
   description: '',
-  resourceCount: 0
+  totalLessons: 0
 })
 
 const resourceList = ref<CourseResource[]>([])
@@ -216,40 +139,39 @@ const addResourceForm = ref({
 })
 
 // 加载课程详情
-const loadCourseDetail = () => {
-  const courseList = JSON.parse(localStorage.getItem('courseList') || '[]')
-  const course = courseList.find((c: Course) => c.id === courseId.value)
+const loadCourseDetail = async () => {
+  
+  const res: any = await request.get(`/course/${courseId.value}/detail`)
+  console.log('get course res', res)
 
-  if (course) {
-    courseInfo.value = course
-    loadResources()
-    loadProgress()
-  } else {
-    ElMessage.error('未找到该课程信息')
-    router.push('/course/list')
-  }
+  courseInfo.value = res.courseInfo;
+  loadResources();
+  // const courseList = JSON.parse(localStorage.getItem('courseList') || '[]')
+  // const course = courseList.find((c: Course) => c.id === courseId.value)
+
+  // if (course) {
+  //   courseInfo.value = course
+  //   loadResources()
+  //   loadProgress()
+  // } else {
+  //   ElMessage.error('未找到该课程信息')
+  //   router.push('/course/list')
+  // }
 }
 
-// 加载资源列表
-const loadResources = () => {
-  const allResources = JSON.parse(localStorage.getItem('courseResources') || '[]')
-  resourceList.value = allResources.filter((r: CourseResource) => r.courseId === courseId.value)
+// 加载课时列表
+const loadResources = async () => {
+  const res: any = await request.get(`/course/${courseId.value}/lessons`)
+  console.log('lessons res', res)
+
+  resourceList.value = res.list;
+  // resourceList.value = allResources.filter((r: CourseResource) => r.courseId === courseId.value)
 }
 
 // 加载学习进度
 const loadProgress = () => {
   const progressData = JSON.parse(localStorage.getItem('courseProgress') || '{}')
   progress.value = progressData[courseId.value] || 0
-}
-
-const getLevelType = (level: string) => {
-  const typeMap: Record<string, any> = {
-    '入门': 'success',
-    '初级': 'primary',
-    '中级': 'warning',
-    '高级': 'danger'
-  }
-  return typeMap[level] || ''
 }
 
 const getResourceIcon = (type: string) => {
@@ -270,64 +192,15 @@ const getResourceIconColor = (type: string) => {
   return colorMap[type] || '#909399'
 }
 
-const getResourceTagType = (type: string) => {
-  const typeMap: Record<string, any> = {
-    '视频': 'primary',
-    '音频': 'success',
-    '文档': 'info'
-  }
-  return typeMap[type] || 'info'
-}
-
 const goBack = () => {
   router.push('/course/list')
 }
 
-const showAddResourceDialog = () => {
-  addResourceForm.value = {
-    title: '',
-    type: '',
-    description: ''
-  }
-  addResourceDialogVisible.value = true
-}
 
-const handleAddResource = () => {
-  if (!addResourceForm.value.title || !addResourceForm.value.type) {
-    ElMessage.warning('请填写完整信息')
-    return
-  }
-
-  const newResource: CourseResource = {
-    id: Date.now().toString(),
-    courseId: courseId.value,
-    title: addResourceForm.value.title,
-    type: addResourceForm.value.type,
-    description: addResourceForm.value.description,
-    createTime: new Date().toLocaleString()
-  }
-
-  const allResources = JSON.parse(localStorage.getItem('courseResources') || '[]')
-  allResources.unshift(newResource)
-  localStorage.setItem('courseResources', JSON.stringify(allResources))
-
-  // 更新课程资源计数
-  const courseList = JSON.parse(localStorage.getItem('courseList') || '[]')
-  const courseIndex = courseList.findIndex((c: Course) => c.id === courseId.value)
-  if (courseIndex !== -1) {
-    courseList[courseIndex].resourceCount += 1
-    localStorage.setItem('courseList', JSON.stringify(courseList))
-    courseInfo.value.resourceCount += 1
-  }
-
-  loadResources()
-  ElMessage.success('添加成功')
-  addResourceDialogVisible.value = false
-}
-
-const viewResource = (resource: CourseResource) => {
-  currentResource.value = resource
+const viewResource = (resourceId: string) => {
+  // currentResource.value = resource
   viewResourceDialogVisible.value = true
+  router.push(`/video-player/${courseId.value}/${resourceId}`)
 }
 
 onMounted(() => {
