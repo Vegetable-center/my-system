@@ -95,13 +95,14 @@
         </el-form-item>
         <el-form-item label="商品封面">
           <el-upload
-            class="cover-uploader"
-            :show-file-list="false"
-            :on-success="handleCoverSuccess"
-            :before-upload="beforeCoverUpload"
-            accept="image/*"
+            ref="coverUpload"
+            :auto-upload="false"
+            :on-change="handleAvatarSuccess"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            action="#"
+            :limit="1"
           >
-            <img v-if="productForm.cover" :src="productForm.cover" class="cover-image" />
+            <img v-if="coverImageUrl" :src="coverImageUrl" class="cover-image" />
             <el-icon v-else class="cover-uploader-icon"><Plus /></el-icon>
           </el-upload>
         </el-form-item>
@@ -181,7 +182,6 @@ const isEdit = ref(false)
 const productForm = ref({
   name: '',
   type: '',
-  image: '',
   description: '',
   points: 0,
   stock: 100,
@@ -218,49 +218,6 @@ const loadProducts = async () => {
 
   productList.value = res.list;
   console.log(productList.value)
-
-  // const stored = localStorage.getItem('shopProducts')
-  // if (stored) {
-  //   productList.value = JSON.parse(stored)
-  // } else {
-  //   // 初始化示例数据
-  //   // productList.value = [
-  //   //   {
-  //   //     id: '1',
-  //   //     title: '方言学习课程优惠券',
-  //   //     description: '可用于兑换任意方言学习课程',
-  //   //     cover: '',
-  //   //     category: 'coupon',
-  //   //     price: 500,
-  //   //     stock: 100,
-  //   //     status: 'online',
-  //   //     tags: ['优惠券', '课程']
-  //   //   },
-  //   //   {
-  //   //     id: '2',
-  //   //     title: '线下课程体验券',
-  //   //     description: '可用于兑换线下课程体验资格',
-  //   //     cover: '',
-  //   //     category: 'coupon',
-  //   //     price: 800,
-  //   //     stock: 50,
-  //   //     status: 'online',
-  //   //     tags: ['优惠券', '线下']
-  //   //   },
-  //   //   {
-  //   //     id: '3',
-  //   //     title: '方言学习资料包',
-  //   //     description: '包含多种方言的学习资料',
-  //   //     cover: '',
-  //   //     category: 'gift',
-  //   //     price: 300,
-  //   //     stock: 200,
-  //   //     status: 'online',
-  //   //     tags: ['资料', '学习']
-  //   //   }
-  //   // ]
-  //   localStorage.setItem('shopProducts', JSON.stringify(productList.value))
-  // }
 }
 
 // 搜索
@@ -290,13 +247,11 @@ const deleteProduct = (id: string) => {
       type: 'warning',
     }
   )
-    .then(() => {
-      const index = productList.value.findIndex(p => p.id === id)
-      if (index > -1) {
-        productList.value.splice(index, 1)
-        localStorage.setItem('shopProducts', JSON.stringify(productList.value))
-        ElMessage.success('删除成功')
-      }
+    .then(async () => {
+      const res: any = await request.delete(`/mall/${id}`);
+      console.log('delete res', res);
+      loadProducts()
+      ElMessage.success('删除成功')
     })
     .catch(() => {
       // 用户取消操作
@@ -309,34 +264,23 @@ const showCreateDialog = () => {
   productForm.value = {
     name: '',
     type: '',
-    image: '',
     description: '',
     points: 0,
     stock: 100,
   }
   dialogVisible.value = true
 }
+const coverFile = ref<File | null>(null)
+// 图片回显的临时路径
+const coverImageUrl = ref<string>('')
 
-// 封面上传成功
-const handleCoverSuccess = (response: any) => {
-  productForm.value.image = response.url
-  ElMessage.success('封面上传成功')
-}
+// 封面图片选择事件
+const handleAvatarSuccess = (file: any) => {
+  coverFile.value = file.raw; // 取原生File对象
 
-// 封面上传前验证
-const beforeCoverUpload = (file: File) => {
-  const isImage = file.type.startsWith('image/')
-  const isLt2M = file.size / 1024 / 1024 < 2
+  coverImageUrl.value = URL.createObjectURL(file.raw!)
 
-  if (!isImage) {
-    ElMessage.error('只能上传图片文件!')
-    return false
-  }
-  if (!isLt2M) {
-    ElMessage.error('图片大小不能超过 2MB!')
-    return false
-  }
-  return true
+  ElMessage.success('封面图选择成功');
 }
 
 
@@ -350,17 +294,27 @@ const handleSubmit = async () => {
   const product = {
     name: productForm.value.name,
     description: productForm.value.description,
-    image: productForm.value.image,
     type: productForm.value.type,
     points: productForm.value.points,
     stock: productForm.value.stock,
     status: 'online' as const,
   }
+  const formData = new FormData();
 
-  const res: any = await request.post('/mall/goods', product);
+  // 1. 追加普通商品字段
+  Object.entries(product).forEach(([key, value]) => {
+    formData.append(key, String(value)); // 数字转字符串，FormData 只接受字符串/文件
+  });
+
+  // 2. 追加商品图片文件（如果有）
+  if (coverFile.value) {
+    formData.append('image', coverFile.value!);
+  }
+
+  const res: any = await request.post('/mall/goods', formData);
   console.log("createProduct res:", res)
 
-  localStorage.setItem('shopProducts', JSON.stringify(productList.value))
+  loadProducts();
   dialogVisible.value = false
   ElMessage.success(isEdit.value ? '修改成功' : '添加成功')
 

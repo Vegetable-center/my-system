@@ -14,7 +14,7 @@
           <el-card class="post-card">
             <div class="post-cover">
               <!-- 这里的图片可以考虑使用v-if去做区分图文显示 -->
-              <el-image :src="'https://via.placeholder.com/400x300?text=Beijing'" fit="cover">
+              <el-image :src="postInfo.coverImage" fit="cover">
                 <template #error>
                   <div class="image-slot">
                     <el-icon :size="40"><Picture /></el-icon>

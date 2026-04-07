@@ -269,6 +269,7 @@ const handleCheckIn = async () => {
     if (res.code === 200) {
       await loadDateData();
       await loadPointData();
+      await loadCheckInToday();
       ElMessage.success(`打卡成功！获得 ${todayCoins.value} 积分`)
     } else {
       ElMessage.error('打卡失败'+ res.message);

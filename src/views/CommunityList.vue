@@ -35,7 +35,7 @@
           <el-card class="post-card" @click="viewDetail(post.id)">
             <div class="post-cover">
               <!-- 这里应该是coverimg -->
-              <el-image :src="post.coverImg" fit="cover" lazy>
+              <el-image :src="post.coverImage" fit="cover" lazy>
                 <template #error>
                   <div class="image-slot">
                     <el-icon :size="40"><Picture /></el-icon>
@@ -93,7 +93,7 @@ interface Post {
   id: string
   title: string
   content: string
-  coverImg: string
+  coverImage: string
   category: string
   userName: string
   avatar: string
@@ -142,7 +142,7 @@ const filteredPosts = computed(() => {
   return postList.value.filter(post => post.category === currentCategory.value)
 })
 
-// 从localStorage加载帖子列表
+// 加载帖子列表
 const loadPostList = async () => {
   try {
     const listData = await request.get('/content/list');
@@ -178,33 +178,6 @@ const showPublishDialog = () => {
 
 const goToCreatePost = () => {
   router.push('/create')
-}
-
-const handlePublish = () => {
-  if (!publishForm.value.title || !publishForm.value.category || !publishForm.value.content) {
-    ElMessage.warning('请填写完整信息')
-    return
-  }
-
-  const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
-  const newPost: Post = {
-    id: Date.now().toString(),
-    title: publishForm.value.title,
-    content: publishForm.value.content,
-    coverImg: publishForm.value.cover || 'https://via.placeholder.com/400x300?text=Post',
-    category: publishForm.value.category,
-    userName: userInfo.username || '匿名用户',
-    avatar: userInfo.avatar || '',
-    viewCount: 0,
-    likeCount: 0,
-    createdAt: new Date().toLocaleString()
-  }
-
-  postList.value.unshift(newPost)
-  localStorage.setItem('communityPosts', JSON.stringify(postList.value))
-
-  ElMessage.success('发布成功')
-  publishDialogVisible.value = false
 }
 
 onMounted(() => {
