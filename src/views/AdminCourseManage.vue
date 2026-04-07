@@ -13,46 +13,31 @@
           v-model="searchKeyword"
           placeholder="搜索课程"
           clearable
-          @clear="handleSearch"
-          @keyup.enter="handleSearch"
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-select v-model="filterType" placeholder="课程类型" clearable @change="handleFilter">
+        <el-select v-model="filterStatus" placeholder="审核状态" clearable>
           <el-option label="全部" value="" />
-          <el-option label="线上课程" value="online" />
-          <el-option label="线下课程" value="offline" />
-        </el-select>
-        <el-select v-model="filterStatus" placeholder="审核状态" clearable @change="handleFilter">
-          <el-option label="全部" value="" />
-          <el-option label="待审核" value="pending" />
-          <el-option label="已通过" value="approved" />
+          <el-option label="已通过" value="normal" />
           <el-option label="已封禁" value="banned" />
         </el-select>
       </div>
 
       <div class="course-list">
-        <el-card v-for="course in filteredCourses" :key="course.id" class="course-card">
+        <el-card v-for="course in filteredCourses" :key="course.courseId" class="course-card">
           <div class="course-cover" @click="viewCourse(course)">
-            <el-image :src="course.cover" fit="cover">
+            <el-image :src="course.coverImageUrl" fit="cover">
               <template #error>
                 <div class="image-slot">
                   <el-icon :size="40"><VideoPlay /></el-icon>
                 </div>
               </template>
             </el-image>
-            <div class="course-type" :class="'type-' + course.type">
-              {{ course.type === 'online' ? '线上' : '线下' }}
-            </div>
-            <div v-if="course.banned" class="course-status status-banned">
+            <div v-if="course.status =='banned'" class="course-status status-banned">
               <el-icon><Lock /></el-icon>
               已封禁
-            </div>
-            <div v-else-if="!course.approved" class="course-status status-pending">
-              <el-icon><Clock /></el-icon>
-              待审核
             </div>
             <div v-else class="course-status status-approved">
               <el-icon><CircleCheck /></el-icon>
@@ -65,34 +50,16 @@
             <div class="course-meta">
               <div class="meta-item">
                 <el-icon><User /></el-icon>
-                <span>{{ course.author || '未知' }}</span>
+                <span>{{ course.teacher || '未知' }}</span>
               </div>
               <div class="meta-item">
-                <el-icon><Calendar /></el-icon>
-                <span>{{ course.createTime }}</span>
-              </div>
-              <div class="meta-item" v-if="course.type === 'online'">
                 <el-icon><VideoPlay /></el-icon>
-                <span>{{ course.lessons?.length || 0 }} 课时</span>
+                <span>{{ course.totalLessons || 0 }} 课时</span>
               </div>
-              <div class="meta-item" v-else>
-                <el-icon><Location /></el-icon>
-                <span>{{ course.city || '未知' }}</span>
-              </div>
-            </div>
-            <div class="course-tags">
-              <el-tag 
-                v-for="tag in course.tags" 
-                :key="tag" 
-                size="small"
-                class="tag-item"
-              >
-                {{ tag }}
-              </el-tag>
             </div>
             <div class="course-actions">
               <el-button 
-                v-if="!course.approved && !course.banned"
+                v-if="course.status == 'banned'"
                 type="success" 
                 @click="approveCourse(course)"
               >
@@ -100,20 +67,12 @@
                 通过审核
               </el-button>
               <el-button 
-                v-if="!course.banned"
+                v-else
                 type="danger" 
                 @click="banCourse(course)"
               >
                 <el-icon><Lock /></el-icon>
                 封禁课程
-              </el-button>
-              <el-button 
-                v-if="course.banned"
-                type="success" 
-                @click="unbanCourse(course)"
-              >
-                <el-icon><Unlock /></el-icon>
-                解封课程
               </el-button>
             </div>
           </div>
@@ -135,32 +94,25 @@ import {
   Calendar,
   Lock,
   Clock,
-  CircleCheck,
   Select,
-  Unlock
+  CircleCheck
 } from '@element-plus/icons-vue'
+import request from '@/utils/request'
+
 
 interface Course {
-  id: string
+  courseId: string
   title: string
   description: string
-  cover: string
-  type: 'online' | 'offline'
-  category: string
-  status: 'draft' | 'published'
-  approved?: boolean
-  banned?: boolean
-  author?: string
-  createTime: string
-  lessons?: any[]
-  city?: string
-  tags: string[]
+  coverImageUrl: string
+  status: 'banned' | 'normal'
+  teacher?: string
+  totalLessons?: string
 }
 
 const router = useRouter()
 const courseList = ref<Course[]>([])
 const searchKeyword = ref('')
-const filterType = ref('')
 const filterStatus = ref('')
 
 // 根据搜索和筛选条件过滤课程
@@ -174,17 +126,11 @@ const filteredCourses = computed(() => {
     )
   }
 
-  if (filterType.value) {
-    result = result.filter(course => course.type === filterType.value)
-  }
-
   if (filterStatus.value) {
-    if (filterStatus.value === 'pending') {
-      result = result.filter(course => !course.approved && !course.banned)
-    } else if (filterStatus.value === 'approved') {
-      result = result.filter(course => course.approved && !course.banned)
+    if (filterStatus.value === 'normal') {
+      result = result.filter((course: any) => course.status == 'normal')
     } else if (filterStatus.value === 'banned') {
-      result = result.filter(course => course.banned)
+      result = result.filter((course: any) => course.status == 'banned')
     }
   }
 
@@ -192,36 +138,16 @@ const filteredCourses = computed(() => {
 })
 
 // 加载课程列表
-const loadCourses = () => {
-  const onlineCourses = JSON.parse(localStorage.getItem('onlineCourses') || '[]')
-  const offlineCourses = JSON.parse(localStorage.getItem('offlineCourses') || '[]')
+const loadCourses = async () => {
+  const res: any = await request.get('/course/list/admin');
+  console.log('course admin get', res);
 
-  // 为所有课程添加审核和封禁状态
-  const allCourses = [
-    ...onlineCourses.map((c: any) => ({ ...c, type: 'online' as const })),
-    ...offlineCourses.map((c: any) => ({ ...c, type: 'offline' as const }))
-  ]
-
-  courseList.value = allCourses
-}
-
-// 搜索
-const handleSearch = () => {
-  // 过滤逻辑由computed自动处理
-}
-
-// 筛选
-const handleFilter = () => {
-  // 过滤逻辑由computed自动处理
+  courseList.value = res.data;
 }
 
 // 查看课程
 const viewCourse = (course: Course) => {
-  if (course.type === 'online') {
-    router.push(`/course/${course.id}`)
-  } else {
-    router.push(`/offline/${course.id}`)
-  }
+  
 }
 
 // 通过审核
@@ -235,20 +161,15 @@ const approveCourse = (course: Course) => {
       type: 'success',
     }
   )
-    .then(() => {
-      const storageKey = course.type === 'online' ? 'onlineCourses' : 'offlineCourses'
-      const courses = JSON.parse(localStorage.getItem(storageKey) || '[]')
-      const index = courses.findIndex((c: any) => c.id === course.id)
-      if (index > -1) {
-        courses[index].approved = true
-        localStorage.setItem(storageKey, JSON.stringify(courses))
-        loadCourses()
-        ElMessage.success('审核通过')
-      }
-    })
-    .catch(() => {
-      // 用户取消操作
-    })
+  .then(async () => {
+    const res: any = await request.post(`/course/${course.courseId}/unban`);
+    console.log('course ban put', res);
+    await loadCourses();
+    ElMessage.success('操作成功')
+  })
+  .catch(() => {
+    // 用户取消操作
+  })
 }
 
 // 封禁课程
@@ -262,47 +183,15 @@ const banCourse = (course: Course) => {
       type: 'warning',
     }
   )
-    .then(() => {
-      const storageKey = course.type === 'online' ? 'onlineCourses' : 'offlineCourses'
-      const courses = JSON.parse(localStorage.getItem(storageKey) || '[]')
-      const index = courses.findIndex((c: any) => c.id === course.id)
-      if (index > -1) {
-        courses[index].banned = true
-        localStorage.setItem(storageKey, JSON.stringify(courses))
-        loadCourses()
-        ElMessage.success('已封禁课程')
-      }
-    })
-    .catch(() => {
-      // 用户取消操作
-    })
-}
-
-// 解封课程
-const unbanCourse = (course: Course) => {
-  ElMessageBox.confirm(
-    '确定解封该课程吗？',
-    '提示',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'success',
-    }
-  )
-    .then(() => {
-      const storageKey = course.type === 'online' ? 'onlineCourses' : 'offlineCourses'
-      const courses = JSON.parse(localStorage.getItem(storageKey) || '[]')
-      const index = courses.findIndex((c: any) => c.id === course.id)
-      if (index > -1) {
-        courses[index].banned = false
-        localStorage.setItem(storageKey, JSON.stringify(courses))
-        loadCourses()
-        ElMessage.success('已解封课程')
-      }
-    })
-    .catch(() => {
-      // 用户取消操作
-    })
+  .then(async () => {
+    const res: any = await request.post(`/course/${course.courseId}/ban`);
+    console.log('course ban put', res);
+    await loadCourses();
+    ElMessage.success('操作成功')
+  })
+  .catch(() => {
+    // 用户取消操作
+  })
 }
 
 const goBack = () => {

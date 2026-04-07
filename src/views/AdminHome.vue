@@ -110,16 +110,6 @@
           </el-card>
         </el-col>
         <el-col :xs="24" :sm="12" :md="8" :lg="8" :xl="8">
-          <el-card class="action-card" @click="goToAnnounceManage">
-            <div class="card-content">
-              <el-icon :size="48" color="#E6A23C"><Bell /></el-icon>
-              <h3>公告管理</h3>
-              <p>发布和管理平台公告</p>
-              <el-button type="warning">进入管理</el-button>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="8" :lg="8" :xl="8">
           <el-card class="action-card" @click="goToShopManage">
             <div class="card-content">
               <el-icon :size="48" color="#F56C6C"><ShoppingCart /></el-icon>

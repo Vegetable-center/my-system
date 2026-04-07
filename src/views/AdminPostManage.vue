@@ -22,27 +22,22 @@
         </el-input>
         <el-select v-model="filterStatus" placeholder="审核状态" clearable @change="handleFilter">
           <el-option label="全部" value="" />
-          <el-option label="待审核" value="pending" />
-          <el-option label="已通过" value="approved" />
-          <el-option label="已封禁" value="banned" />
+          <el-option label="正常" value="normal" />
+          <el-option label="审核态" value="banned" />
         </el-select>
       </div>
 
       <div class="post-list">
         <el-card v-for="post in filteredPosts" :key="post.id" class="post-card">
-          <div class="post-cover" @click="viewPost(post)">
-            <el-image :src="post.cover" fit="cover">
+          <div class="post-cover" @click="viewDetail(post.id)">
+            <el-image :src="post.coverImage" fit="cover">
               <template #error>
                 <div class="image-slot">
                   <el-icon :size="40"><Document /></el-icon>
                 </div>
               </template>
             </el-image>
-            <div v-if="post.banned" class="post-status status-banned">
-              <el-icon><Lock /></el-icon>
-              已封禁
-            </div>
-            <div v-else-if="!post.approved" class="post-status status-pending">
+            <div v-if="post.status == 'banned'" class="post-status status-pending">
               <el-icon><Clock /></el-icon>
               待审核
             </div>
@@ -57,55 +52,37 @@
             <div class="post-meta">
               <div class="meta-item">
                 <el-icon><User /></el-icon>
-                <span>{{ post.author || '未知' }}</span>
+                <span>{{ post.userName || '未知' }}</span>
               </div>
               <div class="meta-item">
                 <el-icon><Calendar /></el-icon>
-                <span>{{ post.createTime }}</span>
+                <span>{{formatUploadTime(post.createdAt) }}</span>
               </div>
               <div class="meta-item">
                 <el-icon><View /></el-icon>
-                <span>{{ post.views || 0 }} 浏览</span>
+                <span>{{ post.viewCount || 0 }} 浏览</span>
               </div>
               <div class="meta-item">
                 <el-icon><Star /></el-icon>
-                <span>{{ post.likes || 0 }} 点赞</span>
+                <span>{{ post.likeCount || 0 }} 点赞</span>
               </div>
-            </div>
-            <div class="post-tags">
-              <el-tag 
-                v-for="tag in post.tags" 
-                :key="tag" 
-                size="small"
-                class="tag-item"
-              >
-                {{ tag }}
-              </el-tag>
             </div>
             <div class="post-actions">
               <el-button 
-                v-if="!post.approved && !post.banned"
+                v-if="post.status == 'banned'"
                 type="success" 
-                @click="approvePost(post)"
+                @click="unbanPost(post)"
               >
                 <el-icon><Select /></el-icon>
                 通过审核
               </el-button>
               <el-button 
-                v-if="!post.banned"
+                v-if="post.status == 'normal'"
                 type="danger" 
                 @click="banPost(post)"
               >
                 <el-icon><Lock /></el-icon>
                 封禁帖子
-              </el-button>
-              <el-button 
-                v-if="post.banned"
-                type="success" 
-                @click="unbanPost(post)"
-              >
-                <el-icon><Unlock /></el-icon>
-                解封帖子
               </el-button>
             </div>
           </div>
@@ -134,22 +111,20 @@ import {
   Unlock
 } from '@element-plus/icons-vue'
 
+import request from '../utils/request'
+
 interface Post {
   id: string
   title: string
   content: string
-  cover: string
+  coverImage: string
   category: string
-  status: 'draft' | 'published'
-  approved?: boolean
-  banned?: boolean
-  author: string
+  status: 'banned' | 'normal'
+  userName: string
   authorAvatar: string
-  views: number
-  likes: number
-  comments?: number
-  tags: string[]
-  createTime: string
+  viewCount: number
+  likeCount: number
+  createdAt: string
 }
 
 const router = useRouter()
@@ -169,12 +144,10 @@ const filteredPosts = computed(() => {
   }
 
   if (filterStatus.value) {
-    if (filterStatus.value === 'pending') {
-      result = result.filter(post => !post.approved && !post.banned)
-    } else if (filterStatus.value === 'approved') {
-      result = result.filter(post => post.approved && !post.banned)
+    if (filterStatus.value === 'normal') {
+      result = result.filter((post: any) => post.status == 'normal')
     } else if (filterStatus.value === 'banned') {
-      result = result.filter(post => post.banned)
+      result = result.filter((post: any) => post.status == 'banned')
     }
   }
 
@@ -182,14 +155,12 @@ const filteredPosts = computed(() => {
 })
 
 // 加载帖子列表
-const loadPosts = () => {
-  const posts = JSON.parse(localStorage.getItem('communityPosts') || '[]')
+const loadPosts = async () => {
+  const res: any = await request.get('/content/admin');
+  console.log('admin post res', res)
+
   // 为所有帖子添加审核和封禁状态
-  postList.value = posts.map((p: any) => ({
-    ...p,
-    approved: p.approved !== false,
-    banned: p.banned || false
-  }))
+  postList.value = res.data.list;
 }
 
 // 搜索
@@ -244,15 +215,11 @@ const banPost = (post: Post) => {
       type: 'warning',
     }
   )
-    .then(() => {
-      const posts = JSON.parse(localStorage.getItem('communityPosts') || '[]')
-      const index = posts.findIndex((p: any) => p.id === post.id)
-      if (index > -1) {
-        posts[index].banned = true
-        localStorage.setItem('communityPosts', JSON.stringify(posts))
-        loadPosts()
-        ElMessage.success('已封禁帖子')
-      }
+    .then(async() => {
+      const res: any = await request.post(`/content/${post.id}/ban`);
+      console.log('ban res', res);
+      await loadPosts();
+      ElMessage.success('操作成功')
     })
     .catch(() => {
       // 用户取消操作
@@ -262,7 +229,7 @@ const banPost = (post: Post) => {
 // 解封帖子
 const unbanPost = (post: Post) => {
   ElMessageBox.confirm(
-    '确定解封该帖子吗？',
+    '确定批准该帖子吗？',
     '提示',
     {
       confirmButtonText: '确定',
@@ -270,15 +237,11 @@ const unbanPost = (post: Post) => {
       type: 'success',
     }
   )
-    .then(() => {
-      const posts = JSON.parse(localStorage.getItem('communityPosts') || '[]')
-      const index = posts.findIndex((p: any) => p.id === post.id)
-      if (index > -1) {
-        posts[index].banned = false
-        localStorage.setItem('communityPosts', JSON.stringify(posts))
-        loadPosts()
-        ElMessage.success('已解封帖子')
-      }
+    .then(async () => {
+      const res: any = await request.post(`/content/${post.id}/unban`);
+      console.log('unban res', res);
+      await loadPosts();
+      ElMessage.success('操作成功')
     })
     .catch(() => {
       // 用户取消操作
@@ -288,10 +251,30 @@ const unbanPost = (post: Post) => {
 const goBack = () => {
   router.back()
 }
+const admin = 'true';
+
+const viewDetail = (id: string) => {
+  router.push(`/community/post/${id}/${admin}`)
+}
 
 onMounted(() => {
   loadPosts()
 })
+
+
+function formatUploadTime(isoTime: any): string {
+  const date = new Date(isoTime);
+  // 转换为本地时间，补零处理
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份从0开始
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+
+  // 返回格式：YYYY-MM-DD HH:mm:ss
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
 </script>
 
 <style scoped>

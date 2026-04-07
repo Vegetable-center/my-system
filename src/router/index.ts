@@ -75,12 +75,6 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/offline/create',
-    name: 'OfflineCourseCreate',
-    component: () => import('@/views/OfflineCourseEdit.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
     path: '/community',
     name: 'Community',
     redirect: '/community/list',
@@ -111,24 +105,6 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/offline',
-    name: 'Offline',
-    redirect: '/offline/list',
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/offline/list',
-    name: 'OfflineList',
-    component: () => import('@/views/OfflineList.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/offline/:id',
-    name: 'OfflineDetail',
-    component: () => import('@/views/OfflineDetail.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
     path: '/message',
     name: 'Message',
     redirect: '/message/list',
@@ -138,18 +114,6 @@ const routes = [
     path: '/message/list',
     name: 'MessageList',
     component: () => import('@/views/MessageList.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/follow',
-    name: 'Follow',
-    redirect: '/follow/list',
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/follow/list',
-    name: 'FollowList',
-    component: () => import('@/views/FollowList.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -189,12 +153,6 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/post-stats',
-    name: 'PostStats',
-    component: () => import('@/views/PostStats.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
     path: '/admin',
     name: 'AdminHome',
     component: () => import('@/views/AdminHome.vue'),
@@ -228,6 +186,12 @@ const routes = [
     path: '/admin/user-manage',
     name: 'AdminUserManage',
     component: () => import('@/views/AdminUserManage.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/video-player/:courseId/:id',
+    name: 'VideoPlayer',
+    component: () => import('@/views/VideoPlayer.vue'),
     meta: { requiresAuth: true, requiresAdmin: true }
   }
 ]
