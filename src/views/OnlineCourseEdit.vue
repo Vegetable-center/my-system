@@ -2,7 +2,7 @@
   <div class="course-edit-container">
     <el-header class="page-header">
       <div class="header-content">
-        <h1>{{ isEdit ? '编辑线上课程' : '创建线上课程' }}</h1>
+        <h1>创建线上课程</h1>
         <el-button @click="goBack">返回</el-button>
       </div>
     </el-header>
@@ -12,31 +12,33 @@
         <el-form :model="courseForm" label-width="120px">
           <el-form-item label="课程标题">
             <el-input 
-              v-model="courseForm.title" 
+              v-model="courseForm.name" 
               placeholder="请输入课程标题" 
               maxlength="50"
               show-word-limit
             />
           </el-form-item>
 
-          <el-form-item label="课程分类">
-            <el-select v-model="courseForm.category" placeholder="请选择分类">
-              <el-option label="方言学习" value="dialect" />
-              <el-option label="文化介绍" value="culture" />
-              <el-option label="实用技巧" value="skill" />
-            </el-select>
+          <el-form-item label="授课教师">
+            <el-input 
+              v-model="courseForm.teacher" 
+              placeholder="请输入授课教师" 
+              maxlength="50"
+              show-word-limit
+            />
           </el-form-item>
 
           <el-form-item label="课程封面">
             <div class="cover-upload">
               <el-upload
-                class="cover-uploader"
-                :show-file-list="false"
-                :on-success="handleCoverSuccess"
-                :before-upload="beforeCoverUpload"
-                accept="image/*"
+                ref="coverUpload"
+                :auto-upload="false"
+                :on-change="handleAvatarSuccess"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                action="#"
+                :limit="1"
               >
-                <img v-if="courseForm.cover" :src="courseForm.cover" class="cover-image" />
+                <img v-if="coverImageUrl" :src="coverImageUrl" class="cover-image" />
                 <el-icon v-else class="cover-uploader-icon"><Plus /></el-icon>
               </el-upload>
               <div class="upload-tip">
@@ -57,46 +59,11 @@
             />
           </el-form-item>
 
-          <el-form-item label="课程时长">
+          <el-form-item label="总课时数">
             <el-input 
-              v-model="courseForm.duration" 
+              v-model="courseForm.totalLessons" 
               placeholder="例如：10课时"
             />
-          </el-form-item>
-
-          <el-form-item label="课程价格">
-            <el-input-number 
-              v-model="courseForm.price" 
-              :min="0" 
-              :precision="2"
-              style="width: 100%"
-            />
-          </el-form-item>
-
-          <el-form-item label="课程标签">
-            <div class="tags-input">
-              <el-tag
-                v-for="tag in courseForm.tags"
-                :key="tag"
-                closable
-                @close="removeTag(tag)"
-                class="tag-item"
-              >
-                {{ tag }}
-              </el-tag>
-              <el-input
-                v-if="inputVisible"
-                ref="inputRef"
-                v-model="inputValue"
-                class="tag-input"
-                size="small"
-                @keyup.enter="handleInputConfirm"
-                @blur="handleInputConfirm"
-              />
-              <el-button v-else class="button-new-tag" size="small" @click="showInput">
-                + 新标签
-              </el-button>
-            </div>
           </el-form-item>
 
           <el-divider>课程内容</el-divider>
@@ -105,15 +72,30 @@
             <div class="lessons-list">
               <div v-for="(lesson, index) in courseForm.lessons" :key="index" class="lesson-item">
                 <el-input 
-                  v-model="lesson.title" 
-                  placeholder="课时标题"
+                  v-model="lesson.lessonNum" 
+                  placeholder="课时序号"
                   class="lesson-input"
                 />
                 <el-input 
-                  v-model="lesson.videoUrl" 
-                  placeholder="视频链接"
+                  v-model="lesson.lessonName" 
+                  placeholder="课时名称"
                   class="lesson-input"
                 />
+                <el-input 
+                  v-model="lesson.duration" 
+                  placeholder="课时时长"
+                  class="lesson-input"
+                />
+
+                <el-upload
+                  ref="video1Upload"
+                  :auto-upload="false"
+                  :on-change="(file: any) => handleVideoChange(file, index)"
+                  accept="video/mp4,video/mpeg,video/avi,video/webm,video/quicktime"
+                  action="#"
+                >
+                  <el-button type="primary">选择视频文件</el-button>
+                </el-upload>
                 <el-button 
                   type="danger" 
                   size="small"
@@ -132,7 +114,6 @@
 
           <el-form-item>
             <div class="form-actions">
-              <el-button @click="saveDraft">保存草稿</el-button>
               <el-button type="primary" @click="publishCourse">发布课程</el-button>
             </div>
           </el-form-item>
@@ -147,192 +128,189 @@ import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 
 interface Lesson {
-  title: string
-  videoUrl: string
+  lessonNum: string
+  lessonName: string
+  duration: number
 }
 
 interface CourseForm {
-  title: string
-  category: string
+  name: string
+  teacher: string
   cover: string
   description: string
-  duration: string
-  price: number
-  tags: string[]
+  totalLessons: string
   lessons: Lesson[]
 }
 
 const router = useRouter()
 const isEdit = ref(false)
 const courseForm = ref<CourseForm>({
-  title: '',
-  category: '',
+  name: '',
+  teacher: '',
   cover: '',
   description: '',
-  duration: '',
-  price: 0,
-  tags: [],
+  totalLessons: '',
   lessons: []
 })
 
-const inputVisible = ref(false)
-const inputValue = ref('')
-const inputRef = ref()
-
-// 加载编辑数据
-const loadEditData = () => {
-  const editingCourse = localStorage.getItem('editingOnlineCourse')
-  if (editingCourse) {
-    const course = JSON.parse(editingCourse)
-    courseForm.value = {
-      title: course.title,
-      category: course.category,
-      cover: course.cover,
-      description: course.description,
-      duration: course.duration,
-      price: course.price || 0,
-      tags: course.tags || [],
-      lessons: course.lessons || []
-    }
-    isEdit.value = true
-    localStorage.removeItem('editingOnlineCourse')
-  }
-}
-
-// 封面上传成功
-const handleCoverSuccess = (response: any) => {
-  courseForm.value.cover = response.url
-  ElMessage.success('封面上传成功')
-}
-
-// 封面上传前验证
-const beforeCoverUpload = (file: File) => {
-  const isImage = file.type.startsWith('image/')
-  const isLt2M = file.size / 1024 / 1024 < 2
-
-  if (!isImage) {
-    ElMessage.error('只能上传图片文件!')
-    return false
-  }
-  if (!isLt2M) {
-    ElMessage.error('图片大小不能超过 2MB!')
-    return false
-  }
-  return true
-}
-
-// 显示标签输入框
-const showInput = () => {
-  inputVisible.value = true
-  nextTick(() => {
-    inputRef.value.focus()
-  })
-}
-
-// 确认添加标签
-const handleInputConfirm = () => {
-  if (inputValue.value) {
-    if (courseForm.value.tags.length >= 5) {
-      ElMessage.warning('最多添加5个标签')
-      return
-    }
-    if (courseForm.value.tags.includes(inputValue.value)) {
-      ElMessage.warning('标签已存在')
-      return
-    }
-    courseForm.value.tags.push(inputValue.value)
-  }
-  inputVisible.value = false
-  inputValue.value = ''
-}
-
-// 移除标签
-const removeTag = (tag: string) => {
-  const index = courseForm.value.tags.indexOf(tag)
-  if (index > -1) {
-    courseForm.value.tags.splice(index, 1)
-  }
-}
 
 // 添加课时
 const addLesson = () => {
   courseForm.value.lessons.push({
-    title: '',
-    videoUrl: ''
+    lessonNum: '',
+    lessonName: '',
+    duration: 0,
   })
 }
+
+// 文件上传的变量
+const videoFiles = ref<any[]>([])
+const coverFile = ref<any>(null)
+const lessonCoverFiles = ref<(File | null)[]>([]);
+// 图片回显的临时路径
+const coverImageUrl = ref<string>('')
+
+// 封面图片选择事件
+const handleAvatarSuccess = (file: any) => {
+  coverFile.value = file.raw; // 取原生File对象
+
+  coverImageUrl.value = URL.createObjectURL(file.raw!)
+
+  ElMessage.success('封面图选择成功');
+}
+
+// 视频文件选择事件
+const handleVideoChange = (file: any, lessonIndex: number) => {
+  videoFiles.value[lessonIndex] = file.raw;
+  ElMessage.success(`课时${lessonIndex}视频文件选择成功`);
+};
 
 // 删除课时
 const removeLesson = (index: number) => {
   courseForm.value.lessons.splice(index, 1)
 }
 
-// 保存草稿
-const saveDraft = () => {
-  if (!courseForm.value.title || !courseForm.value.category) {
-    ElMessage.warning('请填写完整信息')
-    return
-  }
+const generateVideoCover = (videoFile: File): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
 
-  const course = {
-    id: isEdit.value ? (JSON.parse(localStorage.getItem('editingOnlineCourse') || '{}')).id : Date.now().toString(),
-    ...courseForm.value,
-    type: 'online' as const,
-    status: 'draft' as const,
-    students: 0,
-    createTime: new Date().toLocaleString()
-  }
-
-  const courses = JSON.parse(localStorage.getItem('onlineCourses') || '[]')
-  if (isEdit.value) {
-    const index = courses.findIndex((c: any) => c.id === course.id)
-    if (index > -1) {
-      courses[index] = course
+    if (!ctx) {
+      reject(new Error('Canvas 上下文获取失败'));
+      return;
     }
-  } else {
-    courses.unshift(course)
-  }
 
-  localStorage.setItem('onlineCourses', JSON.stringify(courses))
-  ElMessage.success('草稿已保存')
-}
+    // 1. 配置视频
+    video.src = URL.createObjectURL(videoFile);
+    video.muted = true;
+    video.preload = 'auto'; // 预加载完整帧
+    video.setAttribute('crossorigin', 'anonymous'); // 解决跨域问题（如果需要）
+
+    // 2. 关键：等待 canplaythrough 事件，确保帧已加载完成
+    video.addEventListener('canplaythrough', () => {
+      // 跳转到目标时间点
+      video.currentTime = 1;
+    });
+
+    // 3. 等待时间跳转完成后再绘制
+    video.addEventListener('seeked', () => {
+      // 设置 canvas 尺寸
+      canvas.width = video.videoWidth || 800;
+      canvas.height = video.videoHeight || 450;
+      
+      // 绘制视频帧
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // 导出为 Blob
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('封面生成失败：Canvas 导出 Blob 失败'));
+        }
+      }, 'image/png', 0.8);
+    });
+
+    // 4. 错误处理
+    video.addEventListener('error', (e) => {
+      reject(new Error(`视频加载失败：${video.error?.message || '未知错误'}`));
+    });
+
+    // 5. 兼容 Safari：把 video 临时插入 DOM
+    document.body.appendChild(video);
+    video.style.position = 'fixed';
+    video.style.opacity = '0';
+    video.style.pointerEvents = 'none';
+  });
+};
+
 
 // 发布课程
-const publishCourse = () => {
-  if (!courseForm.value.title || !courseForm.value.category || !courseForm.value.description) {
+const publishCourse = async () => {
+  const isValid = courseForm.value.lessons.every(lesson => 
+    Object.values(lesson).every((value: any) => 
+      value && value.trim() !== ''  // 检查非空且不是空白字符串
+    )
+  );
+  if (!courseForm.value.name || !courseForm.value.teacher || !courseForm.value.description || isValid) {
     ElMessage.warning('请填写完整信息')
     return
   }
 
-  if (courseForm.value.lessons.length === 0) {
-    ElMessage.warning('请至少添加一个课时')
-    return
+  // 自动为所有视频生成封面（用户无感知）
+  lessonCoverFiles.value = []; // 清空旧封面
+  for (let i = 0; i < videoFiles.value.length; i++) {
+    const videoFile = videoFiles.value[i];
+    // 生成封面并存储
+    const coverBlob = await generateVideoCover(videoFile);
+    const coverFile = new File([coverBlob], `lesson-${i+1}-cover.png`, { type: 'image/png' });
+    lessonCoverFiles.value[i] = coverFile;
   }
 
-  const course = {
-    id: isEdit.value ? (JSON.parse(localStorage.getItem('editingOnlineCourse') || '{}')).id : Date.now().toString(),
-    ...courseForm.value,
-    type: 'online' as const,
-    status: 'published' as const,
-    students: 0,
-    createTime: new Date().toLocaleString()
+  const formData = new FormData();
+  // 封面图文件
+  if(coverFile.value){
+    formData.append('coverImage', coverFile.value);
   }
 
-  const courses = JSON.parse(localStorage.getItem('onlineCourses') || '[]')
-  if (isEdit.value) {
-    const index = courses.findIndex((c: any) => c.id === course.id)
-    if (index > -1) {
-      courses[index] = course
+  // 课程基础信息
+  formData.append('course',JSON.stringify({
+    name: courseForm.value.name,
+    teacher: courseForm.value.teacher,
+    totalLessons: courseForm.value.totalLessons,
+    description: courseForm.value.description,
+  }))
+  // 课时信息
+  formData.append('lessons',JSON.stringify(courseForm.value.lessons))
+
+  // 课时封面（和视频顺序完全一致，关键！）
+    lessonCoverFiles.value.forEach((file) => {
+      if (file) formData.append('lessonCovers', file);
+    });
+
+  // 课时视频文件
+  videoFiles.value.forEach((file, index) => {
+    if (file) {
+      formData.append('videos', file);
     }
-  } else {
-    courses.unshift(course)
+  })
+  try {
+    const res: any = await request.post('/course', formData);
+    if(res.success === true){
+      console.log("course res", res)
+      ElMessage.success('课程发布成功')
+      router.push('/course/manage')
+    } else {
+      console.log("Error course res", res)
+    }
+  } catch (error){
+    ElMessage.error('课程发布出错')
+    console.log("Error course res", error)
   }
-
-  localStorage.setItem('onlineCourses', JSON.stringify(courses))
-  ElMessage.success('课程发布成功')
-  router.push('/course/manage')
 }
 
 const goBack = () => {
@@ -340,7 +318,7 @@ const goBack = () => {
 }
 
 onMounted(() => {
-  loadEditData()
+  
 })
 </script>
 

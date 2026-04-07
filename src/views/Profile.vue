@@ -82,7 +82,7 @@
             </template>
             <div class="post-list">
               <div v-for="post in myPosts" :key="post.id" class="post-item">
-                <el-image :src="post.cover" fit="cover" class="post-cover">
+                <el-image :src="post.coverImage" fit="cover" class="post-cover">
                   <template #error>
                     <div class="image-slot">
                       <el-icon :size="40"><Picture /></el-icon>
@@ -238,6 +238,21 @@
     <!-- 编辑个人信息对话框 -->
     <el-dialog v-model="editDialogVisible" title="编辑个人信息" width="500px">
       <el-form :model="editForm" label-width="100px">
+        <el-form-item label="修改头像">
+          <div class="cover-upload">
+            <el-upload
+              ref="coverUpload"
+              :auto-upload="false"
+              :on-change="handleAvatarSuccess"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              action="#"
+              :limit="1"
+            >
+              <img v-if="avatarFileUrl" :src="avatarFileUrl" class="cover-image" />
+              <el-icon v-else class="cover-uploader-icon"><Plus /></el-icon>
+            </el-upload>
+          </div>
+        </el-form-item>
         <el-form-item label="用户名">
           <el-input v-model="editForm.username" disabled />
         </el-form-item>
@@ -249,9 +264,6 @@
             placeholder="请输入个性签名"
           />
         </el-form-item>
-        <!-- <el-form-item label="头像URL">
-          <el-input v-model="editForm.avatar" placeholder="请输入头像URL" />
-        </el-form-item> -->
       </el-form>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
@@ -277,7 +289,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElUpload } from 'element-plus'
 import { 
   Edit, 
   Document, 
@@ -348,6 +360,17 @@ const isSelf = computed(() => {
 const isFollowing = computed(() => {
   return userInfo.value.followers.some((follower: any) => follower.id == localStorage.getItem('userId'));
 })
+// 选中的头像文件（来自上传组件）
+const avatarFile = ref<any>('');
+const avatarFileUrl = ref<any>('');
+// 封面图片选择事件
+const handleAvatarSuccess = (file: any) => {
+  avatarFile.value = file.raw; // 取原生File对象
+
+  avatarFileUrl.value = URL.createObjectURL(file.raw!)
+
+  ElMessage.success('封面图选择成功');
+}
 // 加载用户信息
 const loadUserInfo = async () => {
   try {
@@ -356,6 +379,7 @@ const loadUserInfo = async () => {
     if(res.code === 200) {
       console.log('getuser res', res);
       userInfo.value.userName = res.data.userName;
+      userInfo.value.avatar = res.data.avatar;
       userInfo.value.signature = res.data.signature;
       userInfo.value.followers = res.data.followers;
       userInfo.value.followings = res.data.followings;
@@ -395,13 +419,21 @@ const showEditDialog = () => {
 }
 
 const saveEdit = async () => {
-  const updatedInfo = {
-    signature: editForm.value.signature,
-    // avatar: editForm.value.avatar
+  // 1. 构建 FormData（关键：支持文件 + 普通字段）
+  const formData = new FormData();
+
+  // 2. 追加个性签名（仅当有值时追加，避免覆盖原有值）
+  if (editForm.value.signature) {
+    formData.append('signature', editForm.value.signature);
+  }
+
+  // 3. 追加头像文件（如果选择了新头像）
+  if (avatarFile.value) {
+    formData.append('avatar', avatarFile.value); // avatarFile 对应后端接收的字段名
   }
 
   try {
-    const res: any = await request.post('/user/profile', updatedInfo);
+    const res: any = await request.post(`/user/profile/${id.value}`, formData);
     if(res.code === 200) {
       ElMessage.success('保存成功');
       loadUserInfo();
@@ -574,6 +606,9 @@ function formatUploadTime(isoTime: any): string {
 </script>
 
 <style scoped>
+.el-button+.el-button {
+  margin-left: 0;
+}
 .profile-container {
   min-height: 100vh;
   background: #f0f2f5;
@@ -776,6 +811,54 @@ function formatUploadTime(isoTime: any): string {
   font-weight: 600;
   color: #303133;
   margin: 0 0 4px 0;
+}
+.cover-upload {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.cover-uploader :deep(.el-upload) {
+  border: 1px dashed #d9d9d9;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.cover-uploader :deep(.el-upload:hover) {
+  border-color: #409EFF;
+}
+
+.cover-uploader-icon {
+  font-size: 28px;
+  color: #8c939d;
+  width: 100px;
+  height: 100px;
+  border-radius: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+}
+
+.cover-image {
+  width: 100px;
+  height: 100px;
+  border-radius: 100px;
+  display: block;
+  object-fit: cover;
+}
+
+.upload-tip {
+  color: #909399;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.upload-tip p {
+  margin: 4px 0;
 }
 
 @media (max-width: 768px) {

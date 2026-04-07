@@ -153,7 +153,7 @@ const filteredProducts = computed(() => {
   if (currentCategory.value === 'all') {
     return productList.value
   }
-  return productList.value.filter(p => p.category === currentCategory.value)
+  return productList.value.filter((p: any) => p.type === currentCategory.value)
 })
 
 // 加载商品列表
@@ -185,6 +185,7 @@ const loadUserCoins = async () => {
 
 // 切换分类
 const changeCategory = (categoryId: string) => {
+  console.log("id", categoryId)
   currentCategory.value = categoryId
 }
 
